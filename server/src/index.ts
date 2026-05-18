@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 import jwt from 'jsonwebtoken';
 import { initDatabase, chatQueries, userQueries, errorLogQueries } from './db/database';
 import { sendErrorNotification } from './services/emailService';
+import bcrypt from 'bcryptjs';
 import authRouter from './routes/auth';
 import adminRouter from './routes/admin';
 import metaRouter from './routes/meta';
@@ -29,6 +30,30 @@ const ALLOWED_ORIGINS = [
 ];
 
 initDatabase();
+
+// İlk işə düşmədə admin yoxdursa avtomatik yarat
+function seedAdminUser() {
+  try {
+    const adminEmail = process.env.ADMIN_EMAIL || 'cavidanbusiness2026@gmail.com';
+    const setupPassword = process.env.SETUP_ADMIN_PASSWORD || 'Admin@166!';
+    const existing = userQueries.findByEmail.get(adminEmail) as any;
+    if (!existing) {
+      const hash = bcrypt.hashSync(setupPassword, 10);
+      userQueries.create.run({
+        id: uuidv4(),
+        email: adminEmail,
+        password_hash: hash,
+        name: process.env.ADMIN_NAME || 'Admin',
+        role: 'admin',
+        status: 'approved',
+      });
+      console.log(`[Seed] Admin yaradıldı: ${adminEmail} / şifrə: ${setupPassword}`);
+    }
+  } catch (e: any) {
+    console.error('[Seed] Xəta:', e.message);
+  }
+}
+seedAdminUser();
 
 const app = express();
 const httpServer = createServer(app);
