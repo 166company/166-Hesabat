@@ -1,0 +1,118 @@
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import { createServer } from 'http';
+import { Server as SocketServer } from 'socket.io';
+import { v4 as uuidv4 } from 'uuid';
+import jwt from 'jsonwebtoken';
+import { initDatabase, chatQueries, userQueries, errorLogQueries } from './db/database';
+import { sendErrorNotification } from './services/emailService';
+import authRouter from './routes/auth';
+import adminRouter from './routes/admin';
+import metaRouter from './routes/meta';
+import googleRouter from './routes/google';
+import chatRouter from './routes/chat';
+import reportTableRouter from './routes/reportTable';
+
+const PORT = process.env.PORT || 5000;
+const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
+const JWT_SECRET = process.env.JWT_SECRET || 'changeme_secret_32chars_minimum!!';
+
+initDatabase();
+
+const app = express();
+const httpServer = createServer(app);
+
+const io = new SocketServer(httpServer, {
+  cors: { origin: CLIENT_URL, methods: ['GET', 'POST'], credentials: true },
+});
+
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(cors({ origin: CLIENT_URL, credentials: true }));
+app.use(express.json({ limit: '1mb' }));
+// Auto-populate üçün uzun timeout (Meta API 14 hesab = ~3-5 dəq)
+app.use('/api/report-table/auto-populate', (_req, _res, next) => {
+  _req.setTimeout(600000); _res.setTimeout(600000); next();
+});
+
+const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200, standardHeaders: true, legacyHeaders: false });
+app.use('/api/', limiter);
+
+// --- Routes ---
+app.use('/api/auth', authRouter);
+app.use('/api/admin', adminRouter);
+app.use('/api/report-table', reportTableRouter);
+app.use('/api/meta', metaRouter);
+app.use('/api/google', googleRouter);
+app.use('/api/chat', chatRouter);
+
+app.get('/api/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
+
+// --- Socket.io for real-time chat ---
+io.use((socket, next) => {
+  const token = socket.handshake.auth.token as string;
+  if (!token) return next(new Error('Unauthorized'));
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as jwt.JwtPayload;
+    const user = userQueries.findById.get(decoded.id) as any;
+    if (!user || user.status !== 'approved' || user.chat_access !== 'approved') {
+      return next(new Error('Chat erişimi yoxdur'));
+    }
+    (socket as any).user = { id: user.id, name: user.name, email: user.email };
+    next();
+  } catch {
+    next(new Error('Invalid token'));
+  }
+});
+
+io.on('connection', (socket) => {
+  const user = (socket as any).user;
+  console.log(`[Chat] ${user.name} connected`);
+
+  socket.on('chat:message', (data: { message: string }) => {
+    const message = String(data.message || '').trim().slice(0, 1000);
+    if (!message) return;
+    const id = uuidv4();
+    chatQueries.create.run({ id, user_id: user.id, user_name: user.name, message });
+    const msg = { id, userId: user.id, userName: user.name, message, createdAt: new Date().toISOString() };
+    io.emit('chat:message', msg);
+  });
+
+  socket.on('disconnect', () => {
+    console.log(`[Chat] ${user.name} disconnected`);
+  });
+});
+
+// --- Global error handler ---
+app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('[Error]', err);
+  const logId = uuidv4();
+  try {
+    errorLogQueries.create.run({
+      id: logId,
+      error_type: err.name || 'Error',
+      error_message: err.message,
+      error_stack: err.stack ?? null,
+      user_id: (req as any).user?.id ?? null,
+      route: req.path,
+    } as Record<string, string | null>);
+    sendErrorNotification({
+      errorType: err.name || 'Error',
+      errorMessage: err.message,
+      errorStack: err.stack,
+      userId: (req as any).user?.id,
+      route: req.path,
+    }).catch(console.error);
+  } catch {
+    // suppress logging errors
+  }
+  res.status(500).json({ error: 'Daxili server xətası' });
+});
+
+httpServer.listen(PORT, () => {
+  console.log(`[Server] Running on http://localhost:${PORT}`);
+});
+
+export default app;

@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($env:Path = [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"User\"\\); node --version; npm --version)",
+      "PowerShell($paths = @\\(\"C:\\\\Program Files\\\\nodejs\\\\node.exe\", \"C:\\\\Program Files \\(x86\\)\\\\nodejs\\\\node.exe\", \"$env:LOCALAPPDATA\\\\Programs\\\\nodejs\\\\node.exe\", \"C:\\\\nodejs\\\\node.exe\"\\); foreach\\($p in $paths\\) { if\\(Test-Path $p\\) { Write-Output \"Found: $p\" } })",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\$env:USERNAME\" -Filter \"node.exe\" -Recurse -ErrorAction SilentlyContinue -Depth 5 | Select-Object -First 5 FullName; Get-ChildItem \"C:\\\\tools\" -ErrorAction SilentlyContinue | Select-Object Name)",
+      "PowerShell(Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned -Force; $env:Path = [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"User\"\\); npm --version)",
+      "PowerShell($env:Path = [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"User\"\\); Set-Location \"c:\\\\Users\\\\Cavidan Setterzade\\\\166 ads audit\\\\server\"; npm install 2>&1)",
+      "PowerShell($env:Path = [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"User\"\\); Set-Location \"c:\\\\Users\\\\Cavidan Setterzade\\\\166 ads audit\\\\server\"; npm install 2>&1 | Select-String -NotMatch \"warn deprecated|npm warn|npm notice\" | Select-Object -Last 20)",
+      "PowerShell($env:Path = [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"User\"\\); Set-Location \"c:\\\\Users\\\\Cavidan Setterzade\\\\166 ads audit\\\\server\"; npx tsc --noEmit 2>&1)",
+      "PowerShell($env:Path = [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"User\"\\); Set-Location \"c:\\\\Users\\\\Cavidan Setterzade\\\\166 ads audit\\\\client\"; npm install 2>&1 | Select-String -NotMatch \"warn|notice\" | Select-Object -Last 10)",
+      "PowerShell($env:Path = [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"User\"\\); Set-Location \"c:\\\\Users\\\\Cavidan Setterzade\\\\166 ads audit\\\\client\"; npx tsc --noEmit 2>&1)",
+      "PowerShell($env:Path = [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"User\"\\); Set-Location \"c:\\\\Users\\\\Cavidan Setterzade\\\\166 ads audit\\\\server\"; Start-Process -FilePath \"cmd.exe\" -ArgumentList \"/c npm run dev\" -WindowStyle Normal; Start-Sleep -Seconds 3; Write-Output \"Server başladılıb\")"
+    ]
+  }
+}

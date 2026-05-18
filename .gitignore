@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Environment (şifrələr, API açarları)
+server/.env
+.env
+
+# Database
+server/data/
+*.db
+*.sqlite
+
+# Build
+client/dist/
+server/dist/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp scripts
+server/check-*.js
+server/fix-patterns.js
