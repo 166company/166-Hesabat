@@ -20,17 +20,31 @@ const PORT = process.env.PORT || 5000;
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme_secret_32chars_minimum!!';
 
+// Bütün icazəli originlər (localhost + Netlify)
+const ALLOWED_ORIGINS = [
+  CLIENT_URL,
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'https://sensational-concha-8ed763.netlify.app',
+];
+
 initDatabase();
 
 const app = express();
 const httpServer = createServer(app);
 
 const io = new SocketServer(httpServer, {
-  cors: { origin: CLIENT_URL, methods: ['GET', 'POST'], credentials: true },
+  cors: { origin: ALLOWED_ORIGINS, methods: ['GET', 'POST'], credentials: true },
 });
 
 app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors({ origin: CLIENT_URL, credentials: true }));
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) callback(null, true);
+    else callback(new Error('CORS: icazə verilmədi'));
+  },
+  credentials: true,
+}));
 app.use(express.json({ limit: '1mb' }));
 // Auto-populate üçün uzun timeout (Meta API 14 hesab = ~3-5 dəq)
 app.use('/api/report-table/auto-populate', (_req, _res, next) => {
