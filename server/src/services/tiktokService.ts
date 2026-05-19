@@ -24,11 +24,38 @@ export async function exchangeCodeForToken(code: string): Promise<{ accessToken:
   if (r.data.code !== 0) throw new Error(r.data.message);
   const accessToken: string = r.data.data.access_token;
 
-  // Advertiser-ləri al
-  const advR = await axios.get(`${BASE}/oauth2/advertiser/get/`, {
-    params: { access_token: accessToken, app_id: APP_ID, secret: APP_SECRET },
-  });
-  const advertiserIds: string[] = (advR.data.data?.list || []).map((a: any) => a.advertiser_id);
+  // 1. OAuth advertiser endpoint-i sına
+  let advertiserIds: string[] = [];
+  try {
+    const advR = await axios.get(`${BASE}/oauth2/advertiser/get/`, {
+      params: { access_token: accessToken, app_id: APP_ID, secret: APP_SECRET },
+    });
+    advertiserIds = (advR.data.data?.list || []).map((a: any) => String(a.advertiser_id));
+    console.log('[TikTok] oauth2/advertiser/get ->', advR.data.code, advertiserIds.length);
+  } catch (e: any) {
+    console.error('[TikTok] oauth2/advertiser/get error:', e.message);
+  }
+
+  // 2. Boşdursa Business Center endpoint-ini sına
+  if (advertiserIds.length === 0) {
+    try {
+      const userR = await axios.get(`${BASE}/user/info/`, {
+        params: { access_token: accessToken, fields: JSON.stringify(['display_name', 'bc_id']) },
+      });
+      console.log('[TikTok] user/info ->', JSON.stringify(userR.data.data));
+      const bcId: string | undefined = userR.data.data?.bc_id;
+      if (bcId) {
+        const bcR = await axios.get(`${BASE}/bc/advertiser/get/`, {
+          params: { access_token: accessToken, bc_id: bcId, page_size: 50 },
+        });
+        console.log('[TikTok] bc/advertiser/get ->', bcR.data.code, JSON.stringify(bcR.data.data?.list?.slice(0, 3)));
+        advertiserIds = (bcR.data.data?.list || []).map((a: any) => String(a.advertiser_id));
+      }
+    } catch (e: any) {
+      console.error('[TikTok] bc advertiser error:', e.message);
+    }
+  }
+
   return { accessToken, advertiserIds };
 }
 
