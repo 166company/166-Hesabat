@@ -261,13 +261,16 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
       if (!valid.valid) continue;
 
       const allSuites = await getBusinessSuites(accessToken);
+      console.log('[Meta] Bütün suitlər:', allSuites.map(s => s.name).join(', '));
       const allowedSuites = allSuites.filter(s => isAllowedPortfolio(s.name));
+      console.log('[Meta] İcazəli suitlər:', allowedSuites.map(s => s.name).join(', '));
       const accountMap = new Map<string, any>();
       // Suite-ləri paralel yüklə
       await Promise.all(allowedSuites.map(async (suite) => {
         const accs = await getAdAccountsForBusiness(suite.id, accessToken);
         accs.forEach(a => accountMap.set(a.id, a));
       }));
+      console.log('[Meta] Bütün hesablar:', [...accountMap.values()].map(a => a.name).join(', '));
 
       // Hesabları paralel yüklə
       await Promise.all([...accountMap.values()].map(async (acc) => {
@@ -278,7 +281,7 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
         const isSkippedAccount =
           accNorm.includes('logistika') ||
           (accNorm.includes('global') && !accNorm.includes('tech'));
-        if (isSkippedAccount) return;
+        if (isSkippedAccount) { console.log('[Meta] SKIP:', accName); return; }
 
         const report = await getFullAccountReport(acc.id, acc, accessToken, startDate, endDate);
 
@@ -292,6 +295,7 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
         const is166Group = accNorm.includes('166') &&
           (accNorm.includes('ads') || accNorm.includes('group') || accNorm.includes('rekl')) &&
           !accNorm.includes('temizl');
+        console.log(`[Meta] Hesab: "${accName}" | is166Group=${is166Group} | isTemizlik=${accNorm.includes('temizl') || accNorm.includes('tamizl') || accNorm.includes('cleaning')}`);
         if (is166Group) {
           for (const camp of report.campaigns) {
             const spend = parseFloat(camp.insights?.spend || '0');
