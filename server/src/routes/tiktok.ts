@@ -34,6 +34,7 @@ router.get('/callback', async (req: Request, res: Response) => {
     });
     res.redirect(`${CLIENT_URL}/tiktok-ads?connected=1`);
   } catch (e: any) {
+    console.error('[TikTok OAuth]', e.message, JSON.stringify(e.response?.data));
     res.redirect(`${CLIENT_URL}/tiktok-ads?error=oauth_failed`);
   }
 });
