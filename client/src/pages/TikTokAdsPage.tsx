@@ -30,6 +30,8 @@ export default function TikTokAdsPage() {
   const [loading, setLoading] = useState(false);
   const [connectLoading, setConnectLoading] = useState(false);
   const [error, setError] = useState('');
+  const [manualId, setManualId] = useState('');
+  const [addingId, setAddingId] = useState(false);
   const [dateRange, setDateRange] = useState<DateRangeValue>({
     startDate: fmt(subDays(today, 29)),
     endDate: fmt(today),
@@ -68,6 +70,19 @@ export default function TikTokAdsPage() {
   async function disconnect() {
     await api.delete('/tiktok/disconnect');
     setConnected(false); setAdvertisers([]); setCampaigns([]);
+  }
+
+  async function addManualId() {
+    const id = manualId.trim();
+    if (!id) return;
+    setAddingId(true);
+    try {
+      await api.post('/tiktok/advertisers/add', { advertiserId: id });
+      setManualId('');
+      await loadStatus();
+    } catch (e: any) {
+      setError(e.response?.data?.error || 'Xəta baş verdi');
+    } finally { setAddingId(false); }
   }
 
   async function fetchReport() {
@@ -131,12 +146,12 @@ export default function TikTokAdsPage() {
       {connected && (
         <>
           {/* Advertiser selection */}
-          {advertisers.length > 0 && (
-            <div className="rounded-2xl p-4 mb-5" style={{ background: '#fff', border: '1px solid #e2e8f0' }}>
-              <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#64748b' }}>
-                Hesablar — {selectedIds.size}/{advertisers.length} seçilib
-              </p>
-              <div className="flex flex-wrap gap-2">
+          <div className="rounded-2xl p-4 mb-5" style={{ background: '#fff', border: '1px solid #e2e8f0' }}>
+            <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#64748b' }}>
+              {advertisers.length > 0 ? `Hesablar — ${selectedIds.size}/${advertisers.length} seçilib` : 'Reklam Hesabları'}
+            </p>
+            {advertisers.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-3">
                 {advertisers.map(a => {
                   const sel = selectedIds.has(a.id);
                   return (
@@ -149,8 +164,29 @@ export default function TikTokAdsPage() {
                   );
                 })}
               </div>
+            )}
+            {advertisers.length === 0 && (
+              <p className="text-xs mb-3" style={{ color: '#94a3b8' }}>
+                Hesab avtomatik tapılmadı. TikTok Ads Manager-dən Advertiser ID-ni əlavə edin.
+              </p>
+            )}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={manualId}
+                onChange={e => setManualId(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addManualId()}
+                placeholder="Advertiser ID (məs: 7123456789012345678)"
+                className="flex-1 px-3 py-2 text-xs rounded-lg outline-none"
+                style={{ border: '1px solid #e2e8f0', color: '#0f172a' }}
+              />
+              <button onClick={addManualId} disabled={addingId || !manualId.trim()}
+                className="px-4 py-2 text-xs font-semibold text-white rounded-lg disabled:opacity-50"
+                style={{ background: '#000' }}>
+                {addingId ? '...' : 'Əlavə et'}
+              </button>
             </div>
-          )}
+          </div>
 
           {/* Date + fetch */}
           <div className="rounded-2xl p-4 mb-5" style={{ background: '#fff', border: '1px solid #e2e8f0' }}>

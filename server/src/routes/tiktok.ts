@@ -71,6 +71,18 @@ router.post('/report', authMiddleware, async (req: AuthRequest, res: Response) =
   res.json({ advertiserId, campaigns });
 });
 
+// Manual advertiser ID əlavə et
+router.post('/advertisers/add', authMiddleware, (req: AuthRequest, res: Response) => {
+  const { advertiserId } = req.body;
+  if (!advertiserId) { res.status(400).json({ error: 'advertiserId tələb olunur' }); return; }
+  const auth = tiktokAuthQueries.findByUser.get(req.user!.id) as any;
+  if (!auth) { res.status(404).json({ error: 'TikTok qoşulmayıb' }); return; }
+  const existing: string[] = JSON.parse(auth.advertiser_ids || '[]');
+  if (!existing.includes(advertiserId)) existing.push(advertiserId);
+  tiktokAuthQueries.updateAdvertiserIds.run(JSON.stringify(existing), req.user!.id);
+  res.json({ ok: true, advertiserIds: existing });
+});
+
 // Bağlantını kəs
 router.delete('/disconnect', authMiddleware, (req: AuthRequest, res: Response) => {
   tiktokAuthQueries.delete.run(req.user!.id);

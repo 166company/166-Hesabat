@@ -261,6 +261,7 @@ export const tiktokAuthQueries = {
       updated_at = CURRENT_TIMESTAMP
   `),
   delete: db.prepare('DELETE FROM tiktok_auth WHERE user_id = ?'),
+  updateAdvertiserIds: db.prepare('UPDATE tiktok_auth SET advertiser_ids = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?'),
 };
 
 // --- Error log queries ---
