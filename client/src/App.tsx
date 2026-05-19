@@ -7,6 +7,7 @@ import MetaAdsPage from './pages/MetaAdsPage';
 import GoogleAdsPage from './pages/GoogleAdsPage';
 import ChatPage from './pages/ChatPage';
 import ReportTablePage from './pages/ReportTablePage';
+import TikTokAdsPage from './pages/TikTokAdsPage';
 import Layout from './components/layout/Layout';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -31,6 +32,7 @@ export default function App() {
           <Route path="google-ads" element={<GoogleAdsPage />} />
           <Route path="chat" element={<ChatPage />} />
           <Route path="report-table" element={<ReportTablePage />} />
+          <Route path="tiktok-ads" element={<TikTokAdsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

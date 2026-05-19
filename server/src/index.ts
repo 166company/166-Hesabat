@@ -16,6 +16,7 @@ import metaRouter from './routes/meta';
 import googleRouter from './routes/google';
 import chatRouter from './routes/chat';
 import reportTableRouter from './routes/reportTable';
+import tiktokRouter from './routes/tiktok';
 
 const PORT = process.env.PORT || 5000;
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
@@ -83,6 +84,7 @@ app.use('/api/', limiter);
 app.use('/api/auth', authRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/report-table', reportTableRouter);
+app.use('/api/tiktok', tiktokRouter);
 app.use('/api/meta', metaRouter);
 app.use('/api/google', googleRouter);
 app.use('/api/chat', chatRouter);

@@ -25,6 +25,11 @@ const IconTable = () => (
     <path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18"/>
   </svg>
 );
+const IconTikTok = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.18 8.18 0 004.78 1.52V6.76a4.85 4.85 0 01-1.01-.07z"/>
+  </svg>
+);
 const IconChat = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
@@ -38,6 +43,7 @@ export default function Sidebar() {
     { to: '/', label: t('nav.dashboard'), Icon: IconDashboard, exact: true },
     { to: '/meta-ads', label: t('nav.metaAds'), Icon: IconMeta, exact: false },
     { to: '/google-ads', label: t('nav.googleAds'), Icon: IconGoogle, exact: false },
+    { to: '/tiktok-ads', label: 'TikTok Ads', Icon: IconTikTok, exact: false },
     { to: '/report-table', label: 'Maliyyə Cədvəli', Icon: IconTable, exact: false },
     { to: '/chat', label: t('nav.chat'), Icon: IconChat, exact: false },
   ];

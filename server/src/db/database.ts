@@ -111,6 +111,17 @@ db.exec(`
     FOREIGN KEY (section_id) REFERENCES report_sections(id)
   );
 
+  CREATE TABLE IF NOT EXISTS tiktok_auth (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL UNIQUE,
+    access_token_encrypted TEXT NOT NULL,
+    advertiser_ids TEXT NOT NULL DEFAULT '[]',
+    tiktok_email TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
+
   CREATE TABLE IF NOT EXISTS report_cells (
     id TEXT PRIMARY KEY,
     section_id TEXT NOT NULL,
@@ -235,6 +246,21 @@ export const reportQueries = {
     ON CONFLICT(section_id, row_id, col_key) DO UPDATE SET value=:value, is_manual=:is_manual, updated_at=CURRENT_TIMESTAMP
   `),
   clearAutoCells: db.prepare('DELETE FROM report_cells WHERE section_id=? AND is_manual=0'),
+};
+
+// --- TikTok auth queries ---
+export const tiktokAuthQueries = {
+  findByUser: db.prepare('SELECT * FROM tiktok_auth WHERE user_id = ?'),
+  upsert: db.prepare(`
+    INSERT INTO tiktok_auth (id, user_id, access_token_encrypted, advertiser_ids, tiktok_email, updated_at)
+    VALUES (:id, :user_id, :access_token_encrypted, :advertiser_ids, :tiktok_email, CURRENT_TIMESTAMP)
+    ON CONFLICT(user_id) DO UPDATE SET
+      access_token_encrypted = :access_token_encrypted,
+      advertiser_ids = :advertiser_ids,
+      tiktok_email = :tiktok_email,
+      updated_at = CURRENT_TIMESTAMP
+  `),
+  delete: db.prepare('DELETE FROM tiktok_auth WHERE user_id = ?'),
 };
 
 // --- Error log queries ---
