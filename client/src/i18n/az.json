@@ -131,6 +131,18 @@
     "unauthorized": "İcazəsiz giriş",
     "tokenExpired": "Token müddəti bitib"
   },
+  "dashboard": {
+    "welcome": "Xoş gəldiniz",
+    "subtitle": "Reklam platformalarını seçin və analitik hesabatlara başlayın.",
+    "metaDesc": "Meta Business Suite hesablarının xərc və metrik analizi. Kampaniya, hesab və portfolio səviyyəsində hesabatlar.",
+    "googleDesc": "Google Ads kampaniya analizi. Label, keyword statistikaları və hesab səviyyəsində xərc izləmə.",
+    "financeTitle": "Maliyyə Cədvəli",
+    "financeLabel": "FİNANS",
+    "financeDesc": "Meta və Google reklamlarından avtomatik toplanan xərclərin xidmət əsaslı maliyyə hesabatı.",
+    "chatTitle": "Qeydlər",
+    "chatDesc": "Komanda üzvləri ilə ümumi müzakirə, qeydlər və real vaxt mesajlaşma.",
+    "infoBar": "Maliyyə cədvəli Meta və Google Ads məlumatlarını avtomatik toplayır. Hər ay məlumatları yeniləmək üçün Maliyyə Cədvəlinə keçin."
+  },
   "common": {
     "loading": "Yüklənir...",
     "save": "Yadda saxla",

@@ -131,6 +131,18 @@
     "unauthorized": "Unauthorised access",
     "tokenExpired": "Token has expired"
   },
+  "dashboard": {
+    "welcome": "Welcome",
+    "subtitle": "Select an advertising platform and start your analytics.",
+    "metaDesc": "Spend and metrics analysis for Meta Business Suite accounts. Reports at campaign, account and portfolio level.",
+    "googleDesc": "Google Ads campaign analysis. Label, keyword statistics and account-level spend tracking.",
+    "financeTitle": "Finance Table",
+    "financeLabel": "FINANCE",
+    "financeDesc": "Service-based financial report with automatically collected spend from Meta and Google Ads.",
+    "chatTitle": "Notes",
+    "chatDesc": "General discussion, notes and real-time messaging with team members.",
+    "infoBar": "The finance table automatically collects data from Meta and Google Ads. Go to Finance Table to refresh monthly data."
+  },
   "common": {
     "loading": "Loading...",
     "save": "Save",

@@ -1,56 +1,58 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-
-const cards = [
-  {
-    title: 'Meta Ads',
-    description: 'Meta Business Suite hesablarının xərc və metrik analizi. Kampaniya, hesab və portfolio səviyyəsində hesabatlar.',
-    to: '/meta-ads',
-    accent: '#1877F2',
-    bg: '#eff6ff',
-    label: 'META',
-  },
-  {
-    title: 'Google Ads',
-    description: 'Google Ads kampaniya analizi. Label, keyword statistikaları və hesab səviyyəsində xərc izləmə.',
-    to: '/google-ads',
-    accent: '#4285F4',
-    bg: '#f0f7ff',
-    label: 'GOOGLE',
-  },
-  {
-    title: 'Maliyyə Cədvəli',
-    description: 'Meta və Google reklamlarından avtomatik toplanan xərclərin xidmət əsaslı maliyyə hesabatı.',
-    to: '/report-table',
-    accent: '#16a34a',
-    bg: '#f0fdf4',
-    label: 'FİNANS',
-  },
-  {
-    title: 'Qeydlər',
-    description: 'Komanda üzvləri ilə ümumi müzakirə, qeydlər və real vaxt mesajlaşma.',
-    to: '/chat',
-    accent: '#7c3aed',
-    bg: '#faf5ff',
-    label: 'CHAT',
-  },
-];
+import { useTranslation } from 'react-i18next';
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const { t } = useTranslation();
+
+  const cards = [
+    {
+      title: 'Meta Ads',
+      description: t('dashboard.metaDesc'),
+      to: '/meta-ads',
+      accent: '#1877F2',
+      bg: '#eff6ff',
+      label: 'META',
+    },
+    {
+      title: 'Google Ads',
+      description: t('dashboard.googleDesc'),
+      to: '/google-ads',
+      accent: '#4285F4',
+      bg: '#f0f7ff',
+      label: 'GOOGLE',
+    },
+    {
+      title: t('dashboard.financeTitle'),
+      description: t('dashboard.financeDesc'),
+      to: '/report-table',
+      accent: '#16a34a',
+      bg: '#f0fdf4',
+      label: t('dashboard.financeLabel'),
+    },
+    {
+      title: t('dashboard.chatTitle'),
+      description: t('dashboard.chatDesc'),
+      to: '/chat',
+      accent: '#7c3aed',
+      bg: '#faf5ff',
+      label: 'CHAT',
+    },
+  ];
 
   return (
     <div className="max-w-4xl">
       {/* Welcome */}
       <div className="mb-8">
         <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: '#94a3b8' }}>
-          Xoş gəldiniz
+          {t('dashboard.welcome')}
         </p>
         <h2 className="text-2xl font-bold" style={{ color: '#0f172a' }}>
           {user?.name}
         </h2>
         <p className="text-sm mt-1" style={{ color: '#64748b' }}>
-          Reklam platformalarını seçin və analitik hesabatlara başlayın.
+          {t('dashboard.subtitle')}
         </p>
       </div>
 
@@ -97,7 +99,7 @@ export default function DashboardPage() {
         style={{ background: '#ffffff', border: '1px solid #e2e8f0' }}>
         <div className="w-2 h-2 rounded-full" style={{ background: '#16a34a' }} />
         <p className="text-xs" style={{ color: '#64748b' }}>
-          Maliyyə cədvəli Meta və Google Ads məlumatlarını avtomatik toplayır. Hər ay məlumatları yeniləmək üçün Maliyyə Cədvəlinə keçin.
+          {t('dashboard.infoBar')}
         </p>
       </div>
     </div>
