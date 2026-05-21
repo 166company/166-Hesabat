@@ -39,7 +39,7 @@ export default function MetaAdsPage() {
   // Hesab expand/collapse
   const [expandedAccounts, setExpandedAccounts] = useState<Set<string>>(new Set());
 
-  useEffect(() => { loadSuites(true); }, []);
+  useEffect(() => { loadSuites(false); }, []);
 
   async function loadSuites(autoFetch = false) {
     try {

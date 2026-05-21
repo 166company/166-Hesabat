@@ -54,8 +54,7 @@ export default function GoogleAdsPage() {
   const [expandedKeywords, setExpandedKeywords] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    const hasCustomRange = globalRange.startDate !== dateRange.startDate || globalRange.endDate !== dateRange.endDate || true;
-    loadStatus(hasCustomRange);
+    loadStatus(false);
     if (searchParams.get('step') === 'verify') setStep('verify');
     const e = searchParams.get('error');
     if (e) setError(`OAuth xətası: ${e}`);

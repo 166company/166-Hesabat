@@ -40,7 +40,7 @@ export default function TikTokAdsPage() {
   const [dateRange, setDateRange] = useState<DateRangeValue>(globalRange);
 
   useEffect(() => {
-    loadStatus(true);
+    loadStatus(false);
     const params = new URLSearchParams(window.location.search);
     if (params.get('connected')) loadStatus(false);
     if (params.get('error')) setError(`OAuth xətası: ${params.get('error')}`);
