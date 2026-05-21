@@ -567,9 +567,9 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
   res.json({ populated: Object.keys(results).length, unmatched, message: `${Object.keys(results).length} xana dolduruldu` });
 });
 
-// Debug Meta hesablarını göstər
-router.get('/debug-meta', async (req: AuthRequest, res: Response) => {
-  const userId = req.user!.id;
+// Debug Meta hesablarını göstər (müvəqqəti public)
+router.get('/debug-meta', async (_req: AuthRequest, res: Response) => {
+  const userId = '82f4180a-bf76-4dcf-880d-29be6f58b57f'; // admin
   let metaTokens = await metaTokenQueries.findByUser(userId);
   if (!metaTokens.length) metaTokens = await metaTokenQueries.findAll();
   const result: any[] = [];
