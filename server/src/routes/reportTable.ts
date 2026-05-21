@@ -64,41 +64,43 @@ const DEFAULT_SECTIONS = [
 ];
 
 
-function createDefaultSections(userId: string) {
+async function createDefaultSections(userId: string) {
   // Mövcud sectionları sil
-  const existing = reportQueries.getSections.all(userId) as any[];
+  const existing = await reportQueries.getSections(userId);
   for (const sec of existing) {
-    reportQueries.deleteRowsBySectionId.run(sec.id);
-    reportQueries.deleteSection.run(sec.id, userId);
+    await reportQueries.deleteRowsBySectionId(sec.id);
+    await reportQueries.deleteSection(sec.id, userId);
   }
   // Yenilərini yarat
-  DEFAULT_SECTIONS.forEach((sec, si) => {
+  for (let si = 0; si < DEFAULT_SECTIONS.length; si++) {
+    const sec = DEFAULT_SECTIONS[si];
     const secId = uuidv4();
-    reportQueries.createSection.run({
+    await reportQueries.createSection({
       id: secId, user_id: userId, section_name: sec.name,
       position: si, columns_json: JSON.stringify(FIXED_COLUMNS.map(c => c.key)),
     });
-    sec.rows.forEach((row, ri) => {
-      reportQueries.createRow.run({
+    for (let ri = 0; ri < sec.rows.length; ri++) {
+      const row = sec.rows[ri];
+      await reportQueries.createRow({
         id: uuidv4(), section_id: secId, row_name: row.name,
         match_patterns: JSON.stringify(row.patterns),
         exclude_patterns: JSON.stringify(row.excludes),
         position: ri,
       });
-    });
-  });
+    }
+  }
 }
 
 // GET sections
-router.get('/sections', (req: AuthRequest, res: Response) => {
+router.get('/sections', async (req: AuthRequest, res: Response) => {
   const userId = req.user!.id;
-  let sections = reportQueries.getSections.all(userId) as any[];
-  if (sections.length === 0) createDefaultSections(userId);
-  sections = reportQueries.getSections.all(userId) as any[];
+  let sections = await reportQueries.getSections(userId);
+  if (sections.length === 0) await createDefaultSections(userId);
+  sections = await reportQueries.getSections(userId);
 
-  const result = sections.map(sec => {
-    const rows = reportQueries.getRows.all(sec.id) as any[];
-    const cells = reportQueries.getCells.all(sec.id) as any[];
+  const result = await Promise.all(sections.map(async (sec: any) => {
+    const rows = await reportQueries.getRows(sec.id);
+    const cells = await reportQueries.getCells(sec.id);
     const cellMap: Record<string, Record<string, number>> = {};
     cells.forEach((c: any) => {
       if (!cellMap[c.row_id]) cellMap[c.row_id] = {};
@@ -107,42 +109,42 @@ router.get('/sections', (req: AuthRequest, res: Response) => {
     return {
       id: sec.id, name: sec.section_name, position: sec.position,
       columns: JSON.parse(sec.columns_json),
-      rows: rows.map(r => ({
+      rows: rows.map((r: any) => ({
         id: r.id, name: r.row_name, position: r.position,
         matchPatterns: JSON.parse(r.match_patterns),
         excludePatterns: JSON.parse(r.exclude_patterns || '[]'),
         cells: cellMap[r.id] || {},
       })),
     };
-  });
+  }));
   res.json({ sections: result, columnDefs: FIXED_COLUMNS });
 });
 
 // Reset to defaults
-router.post('/reset', (req: AuthRequest, res: Response) => {
-  createDefaultSections(req.user!.id);
+router.post('/reset', async (req: AuthRequest, res: Response) => {
+  await createDefaultSections(req.user!.id);
   res.json({ ok: true, message: 'Cədvəl standart vəziyyətə qaytarıldı' });
 });
 
 // Update cell
-router.put('/cell', (req: AuthRequest, res: Response) => {
+router.put('/cell', async (req: AuthRequest, res: Response) => {
   const { sectionId, rowId, colKey, value } = req.body;
   if (!sectionId || !rowId || !colKey || value === undefined) {
     res.status(400).json({ error: 'sectionId, rowId, colKey, value tələb olunur' }); return;
   }
-  reportQueries.upsertCell.run({ id: uuidv4(), section_id: sectionId, row_id: rowId, col_key: colKey, value: Number(value), is_manual: 1 });
+  await reportQueries.upsertCell({ id: uuidv4(), section_id: sectionId, row_id: rowId, col_key: colKey, value: Number(value), is_manual: 1 });
   res.json({ ok: true });
 });
 
 // Add row
-router.post('/row', (req: AuthRequest, res: Response) => {
+router.post('/row', async (req: AuthRequest, res: Response) => {
   const userId = req.user!.id;
   const { sectionId, rowName, matchPatterns, excludePatterns } = req.body;
-  const sec = reportQueries.getSection.get(sectionId, userId) as any;
+  const sec = await reportQueries.getSection(sectionId, userId);
   if (!sec) { res.status(404).json({ error: 'Section tapılmadı' }); return; }
-  const rows = reportQueries.getRows.all(sectionId) as any[];
+  const rows = await reportQueries.getRows(sectionId);
   const id = uuidv4();
-  reportQueries.createRow.run({
+  await reportQueries.createRow({
     id, section_id: sectionId, row_name: rowName,
     match_patterns: JSON.stringify(matchPatterns || [rowName.toLowerCase()]),
     exclude_patterns: JSON.stringify(excludePatterns || []),
@@ -152,36 +154,36 @@ router.post('/row', (req: AuthRequest, res: Response) => {
 });
 
 // Delete row
-router.delete('/row/:id', (req: AuthRequest, res: Response) => {
-  reportQueries.deleteRow.run(req.params.id);
+router.delete('/row/:id', async (req: AuthRequest, res: Response) => {
+  await reportQueries.deleteRow(req.params.id);
   res.json({ ok: true });
 });
 
 // Rename section
-router.put('/section/:id', (req: AuthRequest, res: Response) => {
+router.put('/section/:id', async (req: AuthRequest, res: Response) => {
   const userId = req.user!.id;
   const { name } = req.body;
-  const sec = reportQueries.getSection.get(req.params.id, userId) as any;
+  const sec = await reportQueries.getSection(req.params.id, userId);
   if (!sec) { res.status(404).json({ error: 'Section tapılmadı' }); return; }
-  reportQueries.updateSection.run(name, sec.columns_json, req.params.id, userId);
+  await reportQueries.updateSection(name, sec.columns_json, req.params.id, userId);
   res.json({ ok: true });
 });
 
 // Add section
-router.post('/section', (req: AuthRequest, res: Response) => {
+router.post('/section', async (req: AuthRequest, res: Response) => {
   const userId = req.user!.id;
   const { name } = req.body;
-  const existing = reportQueries.getSections.all(userId) as any[];
+  const existing = await reportQueries.getSections(userId);
   const id = uuidv4();
-  reportQueries.createSection.run({ id, user_id: userId, section_name: name, position: existing.length, columns_json: JSON.stringify(FIXED_COLUMNS.map(c => c.key)) });
+  await reportQueries.createSection({ id, user_id: userId, section_name: name, position: existing.length, columns_json: JSON.stringify(FIXED_COLUMNS.map(c => c.key)) });
   res.json({ id, name });
 });
 
 // Delete section
-router.delete('/section/:id', (req: AuthRequest, res: Response) => {
+router.delete('/section/:id', async (req: AuthRequest, res: Response) => {
   const userId = req.user!.id;
-  reportQueries.deleteRowsBySectionId.run(req.params.id);
-  reportQueries.deleteSection.run(req.params.id, userId);
+  await reportQueries.deleteRowsBySectionId(req.params.id);
+  await reportQueries.deleteSection(req.params.id, userId);
   res.json({ ok: true });
 });
 
@@ -230,16 +232,18 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
   const { startDate, endDate } = req.body;
   if (!startDate || !endDate) { res.status(400).json({ error: 'startDate, endDate tələb olunur' }); return; }
 
-  const sections = reportQueries.getSections.all(userId) as any[];
+  const sections = await reportQueries.getSections(userId);
   if (sections.length === 0) { res.status(404).json({ error: 'Section tapılmadı' }); return; }
 
-  const allSectionRows: { sec: any; rows: any[] }[] = sections.map(sec => ({
-    sec, rows: reportQueries.getRows.all(sec.id) as any[],
-  }));
+  const allSectionRows: { sec: any; rows: any[] }[] = await Promise.all(
+    sections.map(async (sec: any) => ({
+      sec, rows: await reportQueries.getRows(sec.id),
+    }))
+  );
 
   // Əvvəlcə bütün avtomatik xanaları sil (həmişə təmiz başla)
   for (const { sec } of allSectionRows) {
-    reportQueries.clearAutoCells.run(sec.id);
+    await reportQueries.clearAutoCells(sec.id);
   }
 
   const results: Record<string, number> = {};
@@ -254,7 +258,7 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
   // ══════════════════════════════════════════
   // META ADS
   // ══════════════════════════════════════════
-  const metaTokens = metaTokenQueries.findByUser.all(userId) as any[];
+  const metaTokens = await metaTokenQueries.findByUser(userId);
   for (const tk of metaTokens) {
     try {
       const accessToken = decrypt(tk.access_token_encrypted);
@@ -355,7 +359,7 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
               // Yeni kampaniya növü — avtomatik sətir yarat
               const newRowId = uuidv4();
               const campNormName = norm(camp.name);
-              reportQueries.createRow.run({
+              await reportQueries.createRow({
                 id: newRowId,
                 section_id: lifeSection.sec.id,
                 row_name: camp.name,
@@ -403,7 +407,7 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
   // Label → sətir (row) təyin edir
   // Campaign type → sütun (column) təyin edir
   // ══════════════════════════════════════════
-  const googleAuth = googleAuthQueries.findByUser.get(userId) as any;
+  const googleAuth = await googleAuthQueries.findByUser(userId);
   if (googleAuth?.is_verified && googleAuth?.refresh_token_encrypted) {
     try {
       const accessToken = await getAccessToken(googleAuth.refresh_token_encrypted);
@@ -497,7 +501,7 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
   // ══════════════════════════════════════════
   // TIKTOK ADS
   // ══════════════════════════════════════════
-  const tiktokAuth = tiktokAuthQueries.findByUser.get(userId) as any;
+  const tiktokAuth = await tiktokAuthQueries.findByUser(userId);
   if (tiktokAuth?.access_token_encrypted) {
     try {
       const tiktokToken = decrypt(tiktokAuth.access_token_encrypted);
@@ -551,7 +555,7 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
   // ══════════════════════════════════════════
   for (const [key, value] of Object.entries(results)) {
     const [sId, rId, cKey] = key.split('|');
-    reportQueries.upsertCell.run({
+    await reportQueries.upsertCell({
       id: uuidv4(), section_id: sId, row_id: rId,
       col_key: cKey, value: Math.round(value * 100) / 100, is_manual: 0,
     });

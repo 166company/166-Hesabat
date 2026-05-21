@@ -40,10 +40,10 @@ async function fetchAllAccounts(accessToken: string): Promise<any[]> {
 }
 
 // Get stored suites for user
-router.get('/business-suites', (req: AuthRequest, res: Response) => {
+router.get('/business-suites', async (req: AuthRequest, res: Response) => {
   const userId = req.user!.id;
-  const tokens = metaTokenQueries.findByUser.all(userId) as any[];
-  const suites = tokens.map(t => ({
+  const tokens = await metaTokenQueries.findByUser(userId);
+  const suites = tokens.map((t: any) => ({
     id: t.id,
     businessSuiteId: t.business_suite_id,
     businessSuiteName: t.business_suite_name,
@@ -93,7 +93,7 @@ router.post(
     const encryptedToken = encrypt(accessToken);
     const groupId = `group_${userId}_${Date.now()}`;
 
-    metaTokenQueries.upsert.run({
+    await metaTokenQueries.upsert({
       id: uuidv4(),
       user_id: userId,
       business_suite_id: groupId,
@@ -106,9 +106,9 @@ router.post(
 );
 
 // Remove a token
-router.delete('/token/:id', (req: AuthRequest, res: Response) => {
+router.delete('/token/:id', async (req: AuthRequest, res: Response) => {
   const userId = req.user!.id;
-  metaTokenQueries.delete.run(req.params.id, userId);
+  await metaTokenQueries.delete(req.params.id, userId);
   res.json({ message: 'Token silindi' });
 });
 
@@ -122,21 +122,21 @@ router.post('/report', async (req: AuthRequest, res: Response) => {
     return;
   }
 
-  const tokenRecord = metaTokenQueries.findById.get(tokenId, userId) as any;
+  const tokenRecord = await metaTokenQueries.findById(tokenId, userId);
   if (!tokenRecord) { res.status(404).json({ error: 'Token tapılmadı' }); return; }
 
   let accessToken: string;
   try {
     accessToken = decrypt(tokenRecord.access_token_encrypted);
   } catch {
-    metaTokenQueries.invalidate.run(tokenRecord.id, userId);
+    await metaTokenQueries.invalidate(tokenRecord.id, userId);
     res.status(400).json({ error: 'Token deşifrə edilə bilmədi', expired: true });
     return;
   }
 
   const validation = await validateToken(accessToken);
   if (!validation.valid) {
-    metaTokenQueries.invalidate.run(tokenRecord.id, userId);
+    await metaTokenQueries.invalidate(tokenRecord.id, userId);
     res.status(401).json({ error: 'Token müddəti bitib. Yeni token əlavə edin.', expired: true });
     return;
   }

@@ -49,7 +49,7 @@ router.get('/callback', async (req: Request, res: Response) => {
     const code6 = generateNumericCode(6);
     const expires = new Date(Date.now() + 15 * 60 * 1000).toISOString();
 
-    googleAuthQueries.upsert.run({
+    await googleAuthQueries.upsert({
       id: uuidv4(),
       user_id: userId,
       refresh_token_encrypted: encrypt(tokens.refreshToken),
@@ -60,7 +60,7 @@ router.get('/callback', async (req: Request, res: Response) => {
       customer_ids: JSON.stringify(customers),
     });
 
-    googleAuthQueries.setVerificationCode.run({
+    await googleAuthQueries.setVerificationCode({
       code: code6,
       expires,
       user_id: userId,
@@ -84,7 +84,7 @@ router.post('/verify', authMiddleware, async (req: AuthRequest, res: Response) =
   const { code } = req.body;
   const userId = req.user!.id;
 
-  const auth = googleAuthQueries.findByUser.get(userId) as any;
+  const auth = await googleAuthQueries.findByUser(userId);
   if (!auth) {
     res.status(404).json({ error: 'Google hesabı tapılmadı' });
     return;
@@ -106,21 +106,21 @@ router.post('/verify', authMiddleware, async (req: AuthRequest, res: Response) =
     return;
   }
 
-  googleAuthQueries.verify.run(userId);
+  await googleAuthQueries.verify(userId);
   res.json({ message: 'Google Ads hesabı doğrulandı', verified: true });
 });
 
 // Resend verification code
 router.post('/resend-code', authMiddleware, async (req: AuthRequest, res: Response) => {
   const userId = req.user!.id;
-  const auth = googleAuthQueries.findByUser.get(userId) as any;
+  const auth = await googleAuthQueries.findByUser(userId);
   if (!auth || !auth.google_email) {
     res.status(400).json({ error: 'Google hesabı tapılmadı' });
     return;
   }
   const code6 = generateNumericCode(6);
   const expires = new Date(Date.now() + 15 * 60 * 1000).toISOString();
-  googleAuthQueries.setVerificationCode.run({ code: code6, expires, user_id: userId });
+  await googleAuthQueries.setVerificationCode({ code: code6, expires, user_id: userId });
   try {
     await sendGoogleVerificationCode(auth.google_email, code6);
   } catch {
@@ -131,8 +131,8 @@ router.post('/resend-code', authMiddleware, async (req: AuthRequest, res: Respon
 });
 
 // Get Google Ads connection status
-router.get('/status', authMiddleware, (req: AuthRequest, res: Response) => {
-  const auth = googleAuthQueries.findByUser.get(req.user!.id) as any;
+router.get('/status', authMiddleware, async (req: AuthRequest, res: Response) => {
+  const auth = await googleAuthQueries.findByUser(req.user!.id);
   if (!auth) {
     res.json({ connected: false, verified: false });
     return;
@@ -148,7 +148,7 @@ router.get('/status', authMiddleware, (req: AuthRequest, res: Response) => {
 // Refresh customer list from Google API
 router.post('/refresh-customers', authMiddleware, async (req: AuthRequest, res: Response) => {
   const userId = req.user!.id;
-  const auth = googleAuthQueries.findByUser.get(userId) as any;
+  const auth = await googleAuthQueries.findByUser(userId);
   if (!auth || !auth.is_verified || !auth.refresh_token_encrypted) {
     res.status(403).json({ error: 'Google Ads doğrulanmayıb' }); return;
   }
@@ -159,7 +159,7 @@ router.post('/refresh-customers', authMiddleware, async (req: AuthRequest, res: 
       res.status(400).json({ error: 'Heç bir Google Ads hesabı tapılmadı. Developer token TEST modundadır — yalnız test hesabları görünür.' });
       return;
     }
-    googleAuthQueries.upsert.run({
+    await googleAuthQueries.upsert({
       id: auth.id,
       user_id: userId,
       refresh_token_encrypted: auth.refresh_token_encrypted,
@@ -177,8 +177,8 @@ router.post('/refresh-customers', authMiddleware, async (req: AuthRequest, res: 
 });
 
 // Disconnect Google Ads
-router.delete('/disconnect', authMiddleware, (req: AuthRequest, res: Response) => {
-  googleAuthQueries.delete.run(req.user!.id);
+router.delete('/disconnect', authMiddleware, async (req: AuthRequest, res: Response) => {
+  await googleAuthQueries.delete(req.user!.id);
   res.json({ message: 'Google Ads bağlantısı ləğv edildi' });
 });
 
@@ -192,7 +192,7 @@ router.post('/report', authMiddleware, async (req: AuthRequest, res: Response) =
     return;
   }
 
-  const auth = googleAuthQueries.findByUser.get(userId) as any;
+  const auth = await googleAuthQueries.findByUser(userId);
   if (!auth || !auth.is_verified) {
     res.status(403).json({ error: 'Google Ads doğrulanmayıb' });
     return;

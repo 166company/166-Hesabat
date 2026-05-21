@@ -26,7 +26,7 @@ router.get('/callback', async (req: Request, res: Response) => {
   }
   try {
     const { accessToken, advertiserIds } = await exchangeCodeForToken(auth_code);
-    tiktokAuthQueries.upsert.run({
+    await tiktokAuthQueries.upsert({
       id: uuidv4(),
       user_id: userId,
       access_token_encrypted: encrypt(accessToken),
@@ -42,7 +42,7 @@ router.get('/callback', async (req: Request, res: Response) => {
 
 // Status
 router.get('/status', authMiddleware, async (req: AuthRequest, res: Response) => {
-  const auth = tiktokAuthQueries.findByUser.get(req.user!.id) as any;
+  const auth = await tiktokAuthQueries.findByUser(req.user!.id);
   if (!auth) { res.json({ connected: false }); return; }
   const advertiserIds: string[] = JSON.parse(auth.advertiser_ids || '[]');
   res.json({ connected: true, advertiserIds });
@@ -50,7 +50,7 @@ router.get('/status', authMiddleware, async (req: AuthRequest, res: Response) =>
 
 // Advertiser məlumatları
 router.get('/advertisers', authMiddleware, async (req: AuthRequest, res: Response) => {
-  const auth = tiktokAuthQueries.findByUser.get(req.user!.id) as any;
+  const auth = await tiktokAuthQueries.findByUser(req.user!.id);
   if (!auth) { res.status(404).json({ error: 'TikTok qoşulmayıb' }); return; }
   const accessToken = decrypt(auth.access_token_encrypted);
   const advertiserIds: string[] = JSON.parse(auth.advertiser_ids || '[]');
@@ -64,7 +64,7 @@ router.post('/report', authMiddleware, async (req: AuthRequest, res: Response) =
   if (!advertiserId || !startDate || !endDate) {
     res.status(400).json({ error: 'advertiserId, startDate, endDate tələb olunur' }); return;
   }
-  const auth = tiktokAuthQueries.findByUser.get(req.user!.id) as any;
+  const auth = await tiktokAuthQueries.findByUser(req.user!.id);
   if (!auth) { res.status(403).json({ error: 'TikTok qoşulmayıb' }); return; }
   const accessToken = decrypt(auth.access_token_encrypted);
   try {
@@ -79,20 +79,20 @@ router.post('/report', authMiddleware, async (req: AuthRequest, res: Response) =
 });
 
 // Manual advertiser ID əlavə et
-router.post('/advertisers/add', authMiddleware, (req: AuthRequest, res: Response) => {
+router.post('/advertisers/add', authMiddleware, async (req: AuthRequest, res: Response) => {
   const { advertiserId } = req.body;
   if (!advertiserId) { res.status(400).json({ error: 'advertiserId tələb olunur' }); return; }
-  const auth = tiktokAuthQueries.findByUser.get(req.user!.id) as any;
+  const auth = await tiktokAuthQueries.findByUser(req.user!.id);
   if (!auth) { res.status(404).json({ error: 'TikTok qoşulmayıb' }); return; }
   const existing: string[] = JSON.parse(auth.advertiser_ids || '[]');
   if (!existing.includes(advertiserId)) existing.push(advertiserId);
-  tiktokAuthQueries.updateAdvertiserIds.run(JSON.stringify(existing), req.user!.id);
+  await tiktokAuthQueries.updateAdvertiserIds(JSON.stringify(existing), req.user!.id);
   res.json({ ok: true, advertiserIds: existing });
 });
 
 // Bağlantını kəs
-router.delete('/disconnect', authMiddleware, (req: AuthRequest, res: Response) => {
-  tiktokAuthQueries.delete.run(req.user!.id);
+router.delete('/disconnect', authMiddleware, async (req: AuthRequest, res: Response) => {
+  await tiktokAuthQueries.delete(req.user!.id);
   res.json({ ok: true });
 });
 

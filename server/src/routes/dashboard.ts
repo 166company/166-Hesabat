@@ -27,7 +27,7 @@ router.get('/summary', async (req: AuthRequest, res: Response) => {
   let google = 0, meta = 0, tiktok = 0;
 
   // ── GOOGLE ──
-  const googleAuth = googleAuthQueries.findByUser.get(userId) as any;
+  const googleAuth = await googleAuthQueries.findByUser(userId);
   if (googleAuth?.is_verified && googleAuth?.refresh_token_encrypted) {
     try {
       const accessToken = await getAccessToken(googleAuth.refresh_token_encrypted);
@@ -44,7 +44,7 @@ router.get('/summary', async (req: AuthRequest, res: Response) => {
   }
 
   // ── META ──
-  const metaTokens = metaTokenQueries.findByUser.all(userId) as any[];
+  const metaTokens = await metaTokenQueries.findByUser(userId);
   for (const tk of metaTokens) {
     try {
       const accessToken = decrypt(tk.access_token_encrypted);
@@ -65,7 +65,7 @@ router.get('/summary', async (req: AuthRequest, res: Response) => {
   }
 
   // ── TIKTOK ──
-  const tiktokAuth = tiktokAuthQueries.findByUser.get(userId) as any;
+  const tiktokAuth = await tiktokAuthQueries.findByUser(userId);
   if (tiktokAuth?.access_token_encrypted) {
     try {
       const tiktokToken = decrypt(tiktokAuth.access_token_encrypted);

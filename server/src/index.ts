@@ -32,17 +32,15 @@ const ALLOWED_ORIGINS = [
   'https://sensational-concha-8ed763.netlify.app',
 ];
 
-initDatabase();
-
 // İlk işə düşmədə admin yoxdursa avtomatik yarat
-function seedAdminUser() {
+async function seedAdminUser() {
   try {
     const adminEmail = process.env.ADMIN_EMAIL || 'cavidanbusiness2026@gmail.com';
     const setupPassword = process.env.SETUP_ADMIN_PASSWORD || 'Admin@166!';
-    const existing = userQueries.findByEmail.get(adminEmail) as any;
+    const existing = await userQueries.findByEmail(adminEmail);
     if (!existing) {
       const hash = bcrypt.hashSync(setupPassword, 10);
-      userQueries.create.run({
+      await userQueries.create({
         id: uuidv4(),
         email: adminEmail,
         password_hash: hash,
@@ -57,7 +55,6 @@ function seedAdminUser() {
     console.error('[Seed] Xəta:', e.message);
   }
 }
-seedAdminUser();
 
 const app = express();
 app.set('trust proxy', 1);
@@ -140,12 +137,12 @@ app.get('/api/news', async (_req, res) => {
 });
 
 // --- Socket.io for real-time chat ---
-io.use((socket, next) => {
+io.use(async (socket, next) => {
   const token = socket.handshake.auth.token as string;
   if (!token) return next(new Error('Unauthorized'));
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as jwt.JwtPayload;
-    const user = userQueries.findById.get(decoded.id) as any;
+    const user = await userQueries.findById(decoded.id);
     if (!user || user.status !== 'approved' || user.chat_access !== 'approved') {
       return next(new Error('Chat erişimi yoxdur'));
     }
@@ -160,11 +157,11 @@ io.on('connection', (socket) => {
   const user = (socket as any).user;
   console.log(`[Chat] ${user.name} connected`);
 
-  socket.on('chat:message', (data: { message: string }) => {
+  socket.on('chat:message', async (data: { message: string }) => {
     const message = String(data.message || '').trim().slice(0, 1000);
     if (!message) return;
     const id = uuidv4();
-    chatQueries.create.run({ id, user_id: user.id, user_name: user.name, message });
+    await chatQueries.create({ id, user_id: user.id, user_name: user.name, message });
     const msg = { id, userId: user.id, userName: user.name, message, createdAt: new Date().toISOString() };
     io.emit('chat:message', msg);
   });
@@ -178,15 +175,14 @@ io.on('connection', (socket) => {
 app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('[Error]', err);
   const logId = uuidv4();
-  try {
-    errorLogQueries.create.run({
-      id: logId,
-      error_type: err.name || 'Error',
-      error_message: err.message,
-      error_stack: err.stack ?? null,
-      user_id: (req as any).user?.id ?? null,
-      route: req.path,
-    } as Record<string, string | null>);
+  errorLogQueries.create({
+    id: logId,
+    error_type: err.name || 'Error',
+    error_message: err.message,
+    error_stack: err.stack ?? null,
+    user_id: (req as any).user?.id ?? null,
+    route: req.path,
+  }).then(() => {
     sendErrorNotification({
       errorType: err.name || 'Error',
       errorMessage: err.message,
@@ -194,14 +190,18 @@ app.use((err: Error, req: express.Request, res: express.Response, _next: express
       userId: (req as any).user?.id,
       route: req.path,
     }).catch(console.error);
-  } catch {
+  }).catch(() => {
     // suppress logging errors
-  }
+  });
   res.status(500).json({ error: 'Daxili server xətası' });
 });
 
-httpServer.listen(PORT, () => {
-  console.log(`[Server] Running on http://localhost:${PORT}`);
-});
+(async () => {
+  await initDatabase();
+  await seedAdminUser();
+  httpServer.listen(PORT, () => {
+    console.log(`[Server] Running on http://localhost:${PORT}`);
+  });
+})();
 
 export default app;

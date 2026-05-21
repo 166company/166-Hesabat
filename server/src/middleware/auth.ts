@@ -29,20 +29,23 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
   const token = header.slice(7);
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as jwt.JwtPayload;
-    const user = userQueries.findById.get(decoded.id) as any;
-    if (!user || user.status !== 'approved') {
-      res.status(401).json({ error: 'Account not approved or not found' });
-      return;
-    }
-    req.user = {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      status: user.status,
-      chatAccess: user.chat_access,
-    };
-    next();
+    userQueries.findById(decoded.id).then(user => {
+      if (!user || user.status !== 'approved') {
+        res.status(401).json({ error: 'Account not approved or not found' });
+        return;
+      }
+      req.user = {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        status: user.status,
+        chatAccess: user.chat_access,
+      };
+      next();
+    }).catch(() => {
+      res.status(401).json({ error: 'Unauthorized' });
+    });
   } catch {
     res.status(401).json({ error: 'Invalid token' });
   }

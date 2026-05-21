@@ -24,7 +24,7 @@ router.post(
     }
     const { email, password, name } = req.body;
 
-    const existing = userQueries.findByEmail.get(email);
+    const existing = await userQueries.findByEmail(email);
     if (existing) {
       res.status(409).json({ error: 'Bu email artıq qeydiyyatdan keçib' });
       return;
@@ -32,7 +32,7 @@ router.post(
 
     const id = uuidv4();
     const hash = await bcrypt.hash(password, 12);
-    userQueries.create.run({ id, email, password_hash: hash, name, role: 'user', status: 'pending' });
+    await userQueries.create({ id, email, password_hash: hash, name, role: 'user', status: 'pending', chat_access: 'none' });
 
     // Create access request for admin approval
     const approveToken = generateSecureToken();
@@ -40,7 +40,7 @@ router.post(
     const requestId = uuidv4();
 
     // We store two records - one for approve, one for deny
-    accessRequestQueries.create.run({
+    await accessRequestQueries.create({
       id: requestId,
       user_id: id,
       user_email: email,
@@ -48,7 +48,7 @@ router.post(
       type: 'account',
       token: approveToken,
     });
-    accessRequestQueries.create.run({
+    await accessRequestQueries.create({
       id: uuidv4(),
       user_id: id,
       user_email: email,
@@ -85,7 +85,7 @@ router.post(
       return;
     }
     const { email, password } = req.body;
-    const user = userQueries.findByEmail.get(email) as any;
+    const user = await userQueries.findByEmail(email);
     if (!user) {
       res.status(401).json({ error: 'Email və ya şifrə yanlışdır' });
       return;
@@ -137,7 +137,7 @@ router.post('/chat-access-request', authMiddleware, async (req: AuthRequest, res
   const approveToken = generateSecureToken();
   const denyToken = generateSecureToken();
 
-  accessRequestQueries.create.run({
+  await accessRequestQueries.create({
     id: uuidv4(),
     user_id: user.id,
     user_email: user.email,
@@ -145,7 +145,7 @@ router.post('/chat-access-request', authMiddleware, async (req: AuthRequest, res
     type: 'chat',
     token: approveToken,
   });
-  accessRequestQueries.create.run({
+  await accessRequestQueries.create({
     id: uuidv4(),
     user_id: user.id,
     user_email: user.email,
@@ -154,7 +154,7 @@ router.post('/chat-access-request', authMiddleware, async (req: AuthRequest, res
     token: denyToken,
   });
 
-  userQueries.updateChatAccess.run('pending', user.id);
+  await userQueries.updateChatAccess('pending', user.id);
 
   try {
     await sendAccessRequestToAdmin({

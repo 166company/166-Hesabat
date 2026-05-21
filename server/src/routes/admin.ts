@@ -13,7 +13,7 @@ router.get('/resolve', async (req: Request, res: Response) => {
     return;
   }
 
-  const request = accessRequestQueries.findByToken.get(token) as any;
+  const request = await accessRequestQueries.findByToken(token);
   if (!request) {
     res.status(404).send('<p style="font-family:Verdana">Sorğu tapılmadı.</p>');
     return;
@@ -24,17 +24,17 @@ router.get('/resolve', async (req: Request, res: Response) => {
   }
 
   const status = action === 'approve' ? 'approved' : 'denied';
-  accessRequestQueries.resolve.run({ status, token });
+  await accessRequestQueries.resolve({ status, token });
 
   if (request.type === 'account') {
-    userQueries.updateStatus.run({
+    await userQueries.updateStatus({
       status,
       approved_at: new Date().toISOString(),
       approved_by: 'admin',
       id: request.user_id,
     });
   } else if (request.type === 'chat') {
-    userQueries.updateChatAccess.run(status, request.user_id);
+    await userQueries.updateChatAccess(status, request.user_id);
   }
 
   try {
@@ -62,12 +62,12 @@ router.get('/resolve', async (req: Request, res: Response) => {
 });
 
 // Admin panel - list users (protected)
-router.get('/users', authMiddleware, (req: AuthRequest, res: Response) => {
+router.get('/users', authMiddleware, async (req: AuthRequest, res: Response) => {
   if (req.user?.role !== 'admin') {
     res.status(403).json({ error: 'Yalnız adminlər üçün' });
     return;
   }
-  const users = userQueries.getAll.all();
+  const users = await userQueries.getAll();
   res.json({ users });
 });
 
