@@ -4,6 +4,7 @@ import api from '../services/api';
 import DateRangePicker, { DateRangeValue } from '../components/common/DateRangePicker';
 import ExportButton from '../components/common/ExportButton';
 import { format, subDays } from 'date-fns';
+import * as XLSX from 'xlsx';
 
 const fmt = (d: Date) => format(d, 'yyyy-MM-dd');
 const today = new Date();
@@ -137,7 +138,7 @@ export default function ReportTablePage() {
     await loadSections();
   }
 
-  // Export data
+  // Export data (for other pages' ExportButton)
   const exportData = sections.flatMap(sec =>
     sec.rows.map(row => {
       const obj: Record<string, string | number> = { Bölmə: sec.name, Xidmət: row.name };
@@ -147,257 +148,360 @@ export default function ReportTablePage() {
     })
   );
 
+  function exportGoogleSheets() {
+    const colKeys = colDefs.map(c => c.key);
+    const colNames = colDefs.map(c => c.name);
+
+    // Build rows array
+    type Row = (string | number)[];
+    const rows: Row[] = [];
+
+    // Title
+    rows.push([`MALIYYƏ CƏDVƏLİ — ${dateRange.startDate} / ${dateRange.endDate}`]);
+    rows.push([]);
+
+    // Column header row
+    rows.push(['Xidmət', ...colNames, 'CƏMİ']);
+
+    sections.forEach(sec => {
+      // Section header
+      rows.push([`▶ ${sec.name.toUpperCase()}`]);
+
+      const sectionRows = (() => {
+        const isLife = sec.name.toLowerCase().includes('life') || sec.name.toLowerCase().includes('vakansiya');
+        return isLife ? sec.rows.filter(r => rowTotal(r, colKeys) > 0) : sec.rows;
+      })();
+
+      sectionRows.forEach(row => {
+        const vals = colKeys.map(k => row.cells[k] || 0);
+        const total = vals.reduce((a, b) => a + b, 0);
+        rows.push([row.name, ...vals, total]);
+      });
+
+      // Section total
+      const secTotals = colKeys.map(k => sectionColTotal(sec.rows, k));
+      const secGrand = secTotals.reduce((a, b) => a + b, 0);
+      rows.push(['CƏMI', ...secTotals, secGrand]);
+      rows.push([]);
+    });
+
+    // Grand total
+    const allRows = sections.flatMap(s => s.rows);
+    const googleKeys = ['search', 'display', 'video', 'pmax'];
+    const totalGoogle  = allRows.reduce((s, r) => s + googleKeys.reduce((a, k) => a + (r.cells[k] || 0), 0), 0);
+    const totalMeta    = allRows.reduce((s, r) => s + (r.cells['meta'] || 0), 0);
+    const totalTikTok  = allRows.reduce((s, r) => s + (r.cells['tiktok'] || 0), 0);
+    const grandTotal   = totalGoogle + totalMeta + totalTikTok;
+
+    rows.push(['ÜMUMI XÜLASƏ']);
+    rows.push(['Google Ads (Search+Display+Video+PMAX)', totalGoogle]);
+    rows.push(['Meta Ads', totalMeta]);
+    rows.push(['TikTok Ads', totalTikTok]);
+    rows.push(['ÜMUMİ CƏMİ', grandTotal]);
+
+    // Create worksheet
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+
+    // Column widths
+    ws['!cols'] = [
+      { wch: 28 },
+      ...colDefs.map(() => ({ wch: 12 })),
+      { wch: 14 },
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Maliyyə Cədvəli');
+    XLSX.writeFile(wb, `maliyye-cedveli-${dateRange.startDate}-${dateRange.endDate}.xlsx`);
+  }
+
   if (loading) return <div className="text-center py-16 text-gray-400 text-sm">Yüklənir...</div>;
 
+  const GROUP_BG: Record<string, string> = {
+    google: 'rgba(66,133,244,0.08)',
+    meta:   'rgba(24,119,242,0.08)',
+    manual: 'rgba(100,116,139,0.06)',
+  };
+  const GROUP_TEXT: Record<string, string> = {
+    google: '#4285F4',
+    meta:   '#1877F2',
+    manual: '#64748b',
+  };
+
   return (
-    <div className="flex flex-col -m-6" style={{ height: 'calc(100vh - 56px)' }}>
-      {/* ── Sabit yuxarı panel ── */}
-      <div className="flex-shrink-0 px-6 pt-4 pb-3" style={{ background: '#f0f2f5', borderBottom: '1px solid #e2e8f0' }}>
-        {/* Header */}
-        <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-widest mb-0.5" style={{ color: '#94a3b8' }}>Hesabat</p>
-            <h2 className="text-base font-bold" style={{ color: '#0f172a' }}>Maliyyə Cədvəli</h2>
+    <div className="flex flex-col -m-6 page-enter" style={{ height: 'calc(100vh - 56px)' }}>
+      <style>{`
+        .rt-th { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; padding:10px 12px; white-space:nowrap; }
+        .rt-td { padding:0 4px; transition:background 0.15s; }
+        .rt-row:hover .rt-name { background:#f8fafc; }
+        .rt-row:hover { background:#f8fafc; }
+        .rt-cell-val { display:block; padding:6px 8px; border-radius:8px; text-align:center; cursor:pointer; transition:all 0.15s; font-size:12px; }
+        .rt-cell-val:hover { background:rgba(22,163,74,0.08); color:#16a34a; }
+        .rt-total-row td { font-size:12px; font-weight:700; }
+      `}</style>
+
+      {/* ── Top panel ── */}
+      <div className="flex-shrink-0 px-6 pt-4 pb-3" style={{ background: '#f0f4f8', borderBottom: '1px solid #e2e8f0' }}>
+        {/* Hero header */}
+        <div className="rounded-2xl px-5 py-4 mb-3 flex items-center justify-between"
+          style={{ background: 'linear-gradient(135deg, #0f172a, #14532d)' }}>
+          <div className="flex items-center gap-3">
+            <div style={{ background: 'rgba(22,163,74,0.2)', borderRadius: 10, padding: 8 }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18"/>
+              </svg>
+            </div>
+            <div>
+              <p style={{ color: '#4ade80', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em' }}>Hesabat</p>
+              <h2 style={{ color: '#f8fafc', fontSize: 15, fontWeight: 700 }}>Maliyyə Cədvəli</h2>
+            </div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <ExportButton data={exportData} filename="maliyye-cedveli" accentColor="#16a34a" />
-            <button onClick={addSection}
-              className="px-3 py-2 text-xs font-medium rounded-lg transition-colors"
-              style={{ color: '#475569', border: '1px solid #e2e8f0', background: '#fff' }}>
+          <div className="flex items-center gap-2">
+            <button onClick={exportGoogleSheets} className="btn-primary flex items-center gap-1.5"
+              style={{ background: 'linear-gradient(135deg,#16a34a,#15803d)' }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Google Sheets
+            </button>
+            <button onClick={addSection} className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors"
+              style={{ color: '#94a3b8', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)' }}>
               + Bölmə
             </button>
-            <button onClick={resetToDefaults}
-              className="px-3 py-2 text-xs font-medium rounded-lg transition-colors"
-              style={{ color: '#dc2626', border: '1px solid #fee2e2', background: '#fff' }}>
+            <button onClick={resetToDefaults} className="px-3 py-1.5 text-xs font-medium rounded-lg"
+              style={{ color: '#fca5a5', border: '1px solid rgba(252,165,165,0.2)', background: 'rgba(220,38,38,0.08)' }}>
               Sıfırla
             </button>
           </div>
         </div>
 
-        <DateRangePicker value={dateRange} onChange={setDateRange} onApply={() => {}} accentColor="#34A853" />
-        <div className="flex items-center gap-2 mt-3">
+        <DateRangePicker value={dateRange} onChange={setDateRange} onApply={() => {}} accentColor="#16a34a" />
+
+        <div className="flex items-center gap-2 mt-3 flex-wrap">
           <button onClick={() => autoPopulate(false)} disabled={autoLoading}
-            className="px-4 py-2 text-xs font-semibold text-white rounded-lg disabled:opacity-50 transition-all"
-            style={{ background: '#16a34a' }}>
-            {autoLoading ? 'Yüklənir...' : 'Avtomatik Doldur'}
+            className="btn-primary flex items-center gap-2" style={{ background: 'linear-gradient(135deg,#16a34a,#15803d)' }}>
+            {autoLoading
+              ? <><div style={{ width:12,height:12,border:'2px solid rgba(255,255,255,0.4)',borderTopColor:'#fff',borderRadius:'50%',animation:'spin 0.8s linear infinite'}}/> Yüklənir...</>
+              : '↓ Avtomatik Doldur'}
           </button>
           <button onClick={() => autoPopulate(true)} disabled={autoLoading}
-            className="px-4 py-2 text-xs font-semibold rounded-lg disabled:opacity-50 transition-all"
+            className="px-4 py-2 text-xs font-semibold rounded-lg disabled:opacity-50"
             style={{ color: '#16a34a', border: '1px solid #16a34a', background: 'transparent' }}>
-            Hamısını Yenilə
+            ↺ Hamısını Yenilə
           </button>
           {autoResult && (
-            <span className="text-xs font-medium" style={{ color: autoResult.startsWith('✓') ? '#16a34a' : '#dc2626' }}>
+            <span className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+              style={{ background: autoResult.startsWith('✓') ? '#f0fdf4' : '#fef2f2', color: autoResult.startsWith('✓') ? '#16a34a' : '#dc2626' }}>
               {autoResult}
             </span>
           )}
         </div>
-        <p className="text-xs mt-1" style={{ color: '#94a3b8' }}>
+        <p className="text-xs mt-2" style={{ color: '#94a3b8' }}>
           Avtomatik Doldur — boş xanaları doldurur &nbsp;·&nbsp; Hamısını Yenilə — bütün auto xanaları əvəz edir &nbsp;·&nbsp; Əl ilə daxil edilənlər qorunur
         </p>
-      </div>{/* ── sabit panel sonu ── */}
+      </div>
 
-      {/* ── Sürüşdürülən cədvəl sahəsi ── */}
-      <div className="flex-1 overflow-y-auto px-6 py-5" style={{ background: '#f0f2f5' }}>
+      {/* ── Scrollable table area ── */}
+      <div className="flex-1 overflow-y-auto px-6 py-5" style={{ background: '#f0f4f8' }}>
+
         {unmatched.length > 0 && (
-          <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-            <p className="text-xs font-semibold text-orange-700 mb-2">
-              ⚠ Uyğun sətir tapılmayan kampaniyalar (hesabat cədvəlinə daxil edilmədi):
+          <div className="mb-4 p-3 rounded-xl" style={{ background: '#fff7ed', border: '1px solid #fed7aa' }}>
+            <p className="text-xs font-semibold mb-2" style={{ color: '#c2410c' }}>
+              ⚠ Uyğun sətir tapılmayan kampaniyalar:
             </p>
-            <div className="max-h-32 overflow-y-auto space-y-1">
-              {unmatched.map((u, i) => (
-                <div key={i} className="text-xs text-orange-600">• {u}</div>
-              ))}
+            <div className="max-h-24 overflow-y-auto space-y-1">
+              {unmatched.map((u, i) => <div key={i} className="text-xs" style={{ color: '#ea580c' }}>• {u}</div>)}
             </div>
           </div>
         )}
 
-      {/* Sections */}
-      {sections.map(sec => {
-        const visibleCols = colDefs.filter(c => sec.columns.includes(c.key));
-        return (
-          <div key={sec.id} className="mb-6 rounded-2xl overflow-hidden" style={{ background: '#fff', border: '1px solid #e2e8f0' }}>
-            {/* Section header */}
-            <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: '1px solid #f1f5f9', background: '#f8fafc' }}>
-              {renamingSectionId === sec.id ? (
-                <div className="flex items-center gap-2">
-                  <input value={renameSectionValue} onChange={e => setRenameSectionValue(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') renameSection(sec.id); if (e.key === 'Escape') setRenamingSectionId(null); }}
-                    className="border border-gray-300 rounded px-2 py-1 text-sm outline-none focus:border-[#34A853]" autoFocus />
-                  <button onClick={() => renameSection(sec.id)} className="text-xs text-green-600 font-medium">Saxla</button>
-                  <button onClick={() => setRenamingSectionId(null)} className="text-xs text-gray-400">Ləğv et</button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <h3 className="font-semibold text-gray-800 text-sm">{sec.name}</h3>
-                  <button onClick={() => { setRenamingSectionId(sec.id); setRenameSectionValue(sec.name); }}
-                    className="text-gray-400 hover:text-gray-600 text-xs">✏️</button>
-                </div>
-              )}
-              <button onClick={() => deleteSection(sec.id)} className="text-gray-300 hover:text-red-400 text-xs px-2">🗑</button>
-            </div>
+        {sections.map(sec => {
+          const visibleCols = colDefs.filter(c => sec.columns.includes(c.key));
+          const sectionRows = (() => {
+            const isLife = sec.name.toLowerCase().includes('life') || sec.name.toLowerCase().includes('vakansiya');
+            return isLife ? sec.rows.filter(r => rowTotal(r, visibleCols.map(c => c.key)) > 0) : sec.rows;
+          })();
 
-            {/* Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-gray-100">
-                    <th className="px-4 py-2.5 text-left text-gray-600 font-semibold bg-gray-50 min-w-[160px] sticky left-0 z-10">
-                      Xidmət
-                    </th>
-                    {/* Group headers */}
-                    {visibleCols.map(col => (
-                      <th key={col.key} className="px-3 py-2.5 text-center font-semibold min-w-[90px]">
-                        <span className={`px-2 py-0.5 rounded-full text-xs ${GROUP_COLORS[col.group]}`}>
-                          {col.name}
-                        </span>
+          return (
+            <div key={sec.id} className="mb-5 rounded-2xl overflow-hidden" style={{ background: '#fff', border: '1px solid #e2e8f0', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+              {/* Section header */}
+              <div className="flex items-center justify-between px-5 py-3"
+                style={{ background: 'linear-gradient(90deg,#f8fafc,#f1f5f9)', borderBottom: '2px solid #e2e8f0' }}>
+                {renamingSectionId === sec.id ? (
+                  <div className="flex items-center gap-2">
+                    <input value={renameSectionValue} onChange={e => setRenameSectionValue(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') renameSection(sec.id); if (e.key === 'Escape') setRenamingSectionId(null); }}
+                      className="border rounded-lg px-3 py-1.5 text-sm outline-none" style={{ borderColor: '#16a34a' }} autoFocus />
+                    <button onClick={() => renameSection(sec.id)} className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white" style={{ background: '#16a34a' }}>Saxla</button>
+                    <button onClick={() => setRenamingSectionId(null)} className="text-xs" style={{ color: '#94a3b8' }}>Ləğv et</button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <div style={{ width: 3, height: 16, background: '#16a34a', borderRadius: 2 }} />
+                    <h3 className="font-bold text-sm" style={{ color: '#0f172a' }}>{sec.name}</h3>
+                    <button onClick={() => { setRenamingSectionId(sec.id); setRenameSectionValue(sec.name); }}
+                      className="opacity-40 hover:opacity-100 transition-opacity text-xs ml-1" style={{ color: '#64748b' }}>✏</button>
+                  </div>
+                )}
+                <button onClick={() => deleteSection(sec.id)}
+                  className="opacity-30 hover:opacity-100 transition-opacity text-xs px-2" style={{ color: '#ef4444' }}>✕</button>
+              </div>
+
+              {/* Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full" style={{ borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                      <th className="rt-th text-left sticky left-0 z-10" style={{ background: '#f8fafc', color: '#475569', minWidth: 160, borderRight: '1px solid #e2e8f0' }}>
+                        Xidmət
                       </th>
-                    ))}
-                    <th className="px-3 py-2.5 text-center font-semibold text-gray-700 bg-yellow-50 min-w-[100px]">
-                      Cəmi
-                    </th>
-                    <th className="w-8 bg-gray-50"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {((() => {
-                    const isLifeSection = sec.name.toLowerCase().includes('life') || sec.name.toLowerCase().includes('vakansiya');
-                    return isLifeSection
-                      ? sec.rows.filter(r => rowTotal(r, visibleCols.map(c => c.key)) > 0)
-                      : sec.rows;
-                  })()).map(row => {
-                    const total = rowTotal(row, visibleCols.map(c => c.key));
-                    return (
-                      <tr key={row.id} className="border-t border-gray-50 hover:bg-gray-50/60 group">
-                        <td className="px-4 py-2 font-medium text-gray-800 bg-white sticky left-0 border-r border-gray-100">
-                          {row.name}
+                      {visibleCols.map(col => (
+                        <th key={col.key} className="rt-th" style={{ color: GROUP_TEXT[col.group], minWidth: 90, background: GROUP_BG[col.group] }}>
+                          {col.name}
+                        </th>
+                      ))}
+                      <th className="rt-th" style={{ color: '#b45309', background: '#fffbeb', minWidth: 100 }}>Cəmi</th>
+                      <th style={{ width: 28, background: '#f8fafc' }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sectionRows.map((row, idx) => {
+                      const total = rowTotal(row, visibleCols.map(c => c.key));
+                      return (
+                        <tr key={row.id} className="rt-row group" style={{ borderTop: '1px solid #f1f5f9', background: idx % 2 === 0 ? '#fff' : '#fafbfc' }}>
+                          <td className="rt-name px-4 py-2 text-xs font-semibold sticky left-0 z-10"
+                            style={{ color: '#0f172a', borderRight: '1px solid #f1f5f9', background: 'inherit', minWidth: 160 }}>
+                            {row.name}
+                          </td>
+                          {visibleCols.map(col => {
+                            const val = row.cells[col.key] || 0;
+                            const isEditing = editingCell?.rowId === row.id && editingCell?.colKey === col.key;
+                            return (
+                              <td key={col.key} className="rt-td" style={{ background: isEditing ? 'rgba(22,163,74,0.05)' : undefined }}
+                                onClick={() => startEdit(sec.id, row.id, col.key, val)}>
+                                {isEditing ? (
+                                  <input ref={inputRef} value={editValue}
+                                    onChange={e => setEditValue(e.target.value)}
+                                    onBlur={commitEdit}
+                                    onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') setEditingCell(null); }}
+                                    style={{ width: '100%', textAlign: 'center', border: '2px solid #16a34a', borderRadius: 8, padding: '5px 6px', outline: 'none', fontSize: 12, fontWeight: 600, background: '#f0fdf4' }}
+                                    type="number" step="0.01" />
+                                ) : (
+                                  <span className="rt-cell-val" style={{ color: val ? '#0f172a' : '#cbd5e1', fontWeight: val ? 600 : 400 }}>
+                                    {val ? fmtMoney(val) : '—'}
+                                  </span>
+                                )}
+                              </td>
+                            );
+                          })}
+                          <td style={{ textAlign: 'center', background: total ? '#fffbeb' : undefined, padding: '6px 12px' }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: total ? '#92400e' : '#e2e8f0' }}>
+                              {total ? fmtMoney(total) : '—'}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'center', padding: '0 4px' }}>
+                            <button onClick={() => deleteRow(row.id)}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity text-xs"
+                              style={{ color: '#ef4444' }}>✕</button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                    {/* Total row */}
+                    {sec.rows.length > 0 && (
+                      <tr className="rt-total-row" style={{ borderTop: '2px solid #e2e8f0', background: 'linear-gradient(90deg,#f1f5f9,#f8fafc)' }}>
+                        <td className="px-4 py-3 sticky left-0 text-xs font-bold" style={{ color: '#475569', borderRight: '1px solid #e2e8f0', background: '#f1f5f9' }}>
+                          Cəmi
                         </td>
                         {visibleCols.map(col => {
-                          const val = row.cells[col.key] || 0;
-                          const isEditing = editingCell?.rowId === row.id && editingCell?.colKey === col.key;
-                          const isManual = col.group === 'manual';
+                          const total = sectionColTotal(sec.rows, col.key);
                           return (
-                            <td key={col.key}
-                              className={`px-1 py-1 text-center cursor-pointer ${isManual ? 'bg-gray-50/40' : ''}`}
-                              onClick={() => startEdit(sec.id, row.id, col.key, val)}>
-                              {isEditing ? (
-                                <input
-                                  ref={inputRef}
-                                  value={editValue}
-                                  onChange={e => setEditValue(e.target.value)}
-                                  onBlur={commitEdit}
-                                  onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') setEditingCell(null); }}
-                                  className="w-full text-center border-2 border-[#34A853] rounded px-1 py-0.5 outline-none text-xs font-medium bg-green-50"
-                                  type="number"
-                                  step="0.01"
-                                />
-                              ) : (
-                                <span className={`block px-2 py-1 rounded hover:bg-green-50 transition-colors ${val ? 'text-gray-800 font-medium' : 'text-gray-300'}`}>
-                                  {val ? fmtMoney(val) : <span className="text-gray-200 group-hover:text-gray-400">—</span>}
-                                </span>
-                              )}
+                            <td key={col.key} style={{ textAlign: 'center', padding: '10px 12px', color: total ? GROUP_TEXT[col.group] : '#e2e8f0' }}>
+                              {total ? fmtMoney(total) : '—'}
                             </td>
                           );
                         })}
-                        <td className="px-3 py-2 text-center font-bold text-gray-800 bg-yellow-50">
-                          {total ? fmtMoney(total) : '—'}
+                        <td style={{ textAlign: 'center', padding: '10px 12px', background: '#fef3c7' }}>
+                          <span style={{ color: '#92400e', fontWeight: 800, fontSize: 13 }}>
+                            {fmtMoney(sec.rows.reduce((s, r) => s + rowTotal(r, visibleCols.map(c => c.key)), 0))}
+                          </span>
                         </td>
-                        <td className="px-1 py-2 text-center">
-                          <button onClick={() => deleteRow(row.id)} className="text-gray-200 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100">✕</button>
+                        <td />
+                      </tr>
+                    )}
+
+                    {/* Add row */}
+                    {addingRowSectionId === sec.id ? (
+                      <tr style={{ borderTop: '1px solid #f1f5f9', background: '#f0fdf4' }}>
+                        <td className="px-4 py-2" colSpan={visibleCols.length + 3}>
+                          <div className="flex items-center gap-2">
+                            <input value={newRowName} onChange={e => setNewRowName(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter') addRow(sec.id); if (e.key === 'Escape') setAddingRowSectionId(null); }}
+                              placeholder="Xidmət adı..." autoFocus
+                              style={{ border: '1px solid #16a34a', borderRadius: 8, padding: '6px 10px', fontSize: 12, outline: 'none', background: '#fff', width: 200 }} />
+                            <button onClick={() => addRow(sec.id)} className="btn-primary" style={{ background: '#16a34a', padding: '6px 14px' }}>Əlavə et</button>
+                            <button onClick={() => setAddingRowSectionId(null)} style={{ fontSize: 12, color: '#94a3b8' }}>Ləğv et</button>
+                          </div>
                         </td>
                       </tr>
-                    );
-                  })}
-
-                  {/* Total row */}
-                  {sec.rows.length > 0 && (
-                    <tr className="border-t-2 border-gray-200 bg-gray-50 font-bold">
-                      <td className="px-4 py-2.5 text-gray-700 sticky left-0 bg-gray-50">Cəmi</td>
-                      {visibleCols.map(col => {
-                        const total = sectionColTotal(sec.rows, col.key);
-                        return (
-                          <td key={col.key} className="px-3 py-2.5 text-center text-gray-800">
-                            {total ? fmtMoney(total) : '—'}
-                          </td>
-                        );
-                      })}
-                      <td className="px-3 py-2.5 text-center text-yellow-700 bg-yellow-100">
-                        {fmtMoney(sec.rows.reduce((s, r) => s + rowTotal(r, visibleCols.map(c => c.key)), 0))}
-                      </td>
-                      <td></td>
-                    </tr>
-                  )}
-
-                  {/* Add row */}
-                  {addingRowSectionId === sec.id ? (
-                    <tr className="border-t border-gray-100 bg-green-50">
-                      <td className="px-4 py-2" colSpan={visibleCols.length + 3}>
-                        <div className="flex items-center gap-2">
-                          <input value={newRowName} onChange={e => setNewRowName(e.target.value)}
-                            onKeyDown={e => { if (e.key === 'Enter') addRow(sec.id); if (e.key === 'Escape') setAddingRowSectionId(null); }}
-                            placeholder="Xidmət adı..." autoFocus
-                            className="border border-[#34A853] rounded px-2 py-1 text-xs outline-none focus:border-[#34A853] bg-white w-48" />
-                          <button onClick={() => addRow(sec.id)} className="text-xs text-white bg-[#34A853] px-3 py-1 rounded">Əlavə et</button>
-                          <button onClick={() => setAddingRowSectionId(null)} className="text-xs text-gray-400">Ləğv et</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    <tr className="border-t border-dashed border-gray-200">
-                      <td colSpan={visibleCols.length + 3} className="px-4 py-2">
-                        <button onClick={() => setAddingRowSectionId(sec.id)}
-                          className="text-xs text-gray-400 hover:text-[#34A853] hover:underline transition-colors">
-                          + Sətir əlavə et
-                        </button>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        );
-      })}
-
-      {/* ── Grand Total ── */}
-      {(() => {
-        const googleKeys = ['search', 'display', 'video', 'pmax'];
-        const metaKey = 'meta';
-        const allRows = sections.flatMap(s => s.rows);
-        const totalGoogle = allRows.reduce((sum, r) => sum + googleKeys.reduce((s, k) => s + (r.cells[k] || 0), 0), 0);
-        const totalMeta   = allRows.reduce((sum, r) => sum + (r.cells[metaKey] || 0), 0);
-        const grandTotal  = totalGoogle + totalMeta;
-        if (!grandTotal) return null;
-        return (
-          <div className="mt-4 rounded-2xl overflow-hidden" style={{ border: '1px solid #e2e8f0', background: '#fff' }}>
-            <div className="px-5 py-3" style={{ borderBottom: '1px solid #f1f5f9', background: '#f8fafc' }}>
-              <span className="text-xs font-bold uppercase tracking-widest" style={{ color: '#64748b' }}>Ümumi Xülasə</span>
-            </div>
-            <div className="flex items-stretch divide-x" style={{ borderColor: '#f1f5f9' }}>
-              <div className="flex-1 px-6 py-5">
-                <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: '#4285F4' }}>Google Ads</p>
-                <p className="text-2xl font-bold" style={{ color: '#0f172a' }}>{fmtMoney(totalGoogle)}</p>
-                <p className="text-xs mt-1" style={{ color: '#94a3b8' }}>Search · Display · Video · PMAX</p>
-              </div>
-              <div className="flex-1 px-6 py-5" style={{ borderLeft: '1px solid #f1f5f9' }}>
-                <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: '#1877F2' }}>Meta Ads</p>
-                <p className="text-2xl font-bold" style={{ color: '#0f172a' }}>{fmtMoney(totalMeta)}</p>
-                <p className="text-xs mt-1" style={{ color: '#94a3b8' }}>Əsas Xidmətlər · Life</p>
-              </div>
-              <div className="flex-1 px-6 py-5" style={{ borderLeft: '1px solid #f1f5f9', background: '#f8fafc' }}>
-                <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: '#16a34a' }}>Cəmi</p>
-                <p className="text-2xl font-bold" style={{ color: '#16a34a' }}>{fmtMoney(grandTotal)}</p>
-                <p className="text-xs mt-1" style={{ color: '#94a3b8' }}>Google + Meta</p>
+                    ) : (
+                      <tr style={{ borderTop: '1px dashed #e2e8f0' }}>
+                        <td colSpan={visibleCols.length + 3} className="px-4 py-2">
+                          <button onClick={() => setAddingRowSectionId(sec.id)}
+                            style={{ fontSize: 12, color: '#94a3b8', transition: 'color 0.15s' }}
+                            onMouseEnter={e => (e.currentTarget.style.color = '#16a34a')}
+                            onMouseLeave={e => (e.currentTarget.style.color = '#94a3b8')}>
+                            + Sətir əlavə et
+                          </button>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
-          </div>
-        );
-      })()}
+          );
+        })}
 
-      <p className="text-xs text-gray-400 mt-3">
-        💡 İstənilən xanaya klikləyin — dəyər daxil edin. Enter ilə təsdiqləyin, Escape ilə ləğv edin.
-      </p>
-      </div>{/* ── sürüşdürülən sahə sonu ── */}
+        {/* Grand Total */}
+        {(() => {
+          const googleKeys = ['search', 'display', 'video', 'pmax'];
+          const allRows = sections.flatMap(s => s.rows);
+          const totalGoogle  = allRows.reduce((sum, r) => sum + googleKeys.reduce((s, k) => s + (r.cells[k] || 0), 0), 0);
+          const totalMeta    = allRows.reduce((sum, r) => sum + (r.cells['meta'] || 0), 0);
+          const totalTikTok  = allRows.reduce((sum, r) => sum + (r.cells['tiktok'] || 0), 0);
+          const grandTotal   = totalGoogle + totalMeta + totalTikTok;
+          if (!grandTotal) return null;
+          return (
+            <div className="rounded-2xl overflow-hidden mb-3" style={{ border: '1px solid #e2e8f0', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+              <div className="px-5 py-3" style={{ background: 'linear-gradient(135deg,#0f172a,#1e3a5f)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                <span style={{ color: '#94a3b8', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Ümumi Xülasə</span>
+              </div>
+              <div className="flex" style={{ background: '#fff' }}>
+                {[
+                  { label: 'Google Ads', value: totalGoogle,  color: '#4285F4', bg: 'rgba(66,133,244,0.06)', sub: 'Search · Display · Video · PMAX' },
+                  { label: 'Meta Ads',   value: totalMeta,    color: '#1877F2', bg: 'rgba(24,119,242,0.06)', sub: 'Əsas Xidmətlər · Life' },
+                  { label: 'TikTok Ads', value: totalTikTok,  color: '#000000', bg: 'rgba(0,0,0,0.03)',      sub: 'Bütün kampaniyalar' },
+                  { label: 'Ümumi Cəmi', value: grandTotal,   color: '#16a34a', bg: 'rgba(22,163,74,0.06)',  sub: 'Google + Meta + TikTok' },
+                ].map((item, i) => (
+                  <div key={item.label} className="flex-1 px-6 py-5" style={{
+                    borderLeft: i > 0 ? '1px solid #f1f5f9' : 'none',
+                    background: item.bg,
+                  }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: item.color, marginBottom: 6 }}>{item.label}</p>
+                    <p style={{ fontSize: 22, fontWeight: 800, color: '#0f172a', marginBottom: 4 }}>{fmtMoney(item.value)}</p>
+                    <p style={{ fontSize: 11, color: '#94a3b8' }}>{item.sub}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
+        <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
+          💡 İstənilən xanaya klikləyin — dəyər daxil edin. Enter ilə təsdiqləyin, Escape ilə ləğv edin.
+        </p>
+      </div>
     </div>
   );
 }

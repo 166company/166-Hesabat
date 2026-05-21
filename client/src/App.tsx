@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
+import { DateRangeProvider } from './context/DateRangeContext';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
@@ -22,6 +23,7 @@ export default function App() {
   if (loading) return <div className="flex items-center justify-center h-screen text-gray-500 text-sm">Yüklənir...</div>;
 
   return (
+    <DateRangeProvider>
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
@@ -37,5 +39,6 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
+    </DateRangeProvider>
   );
 }

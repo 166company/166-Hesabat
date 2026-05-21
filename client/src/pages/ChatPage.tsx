@@ -1,120 +1,123 @@
 import { useState, useEffect, useRef } from 'react';
-import { useTranslation } from 'react-i18next';
-import { io, Socket } from 'socket.io-client';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { ChatMessage } from '../types';
+
+interface Message {
+  id: string;
+  userId: string;
+  userName: string;
+  message: string;
+  createdAt: string;
+}
 
 export default function ChatPage() {
-  const { t } = useTranslation();
-  const { user, token } = useAuth();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const { user } = useAuth();
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  const [socket, setSocket] = useState<Socket | null>(null);
-  const [connected, setConnected] = useState(false);
-  const [requestLoading, setRequestLoading] = useState(false);
-  const [requestSent, setRequestSent] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const chatAccess = user?.chatAccess;
+  useEffect(() => { loadMessages(); }, []);
 
   useEffect(() => {
-    if (chatAccess !== 'approved' || !token) return;
-    loadMessages();
-    const sock = io(window.location.origin, { auth: { token }, path: '/socket.io', transports: ['websocket', 'polling'] });
-    sock.on('connect', () => setConnected(true));
-    sock.on('disconnect', () => setConnected(false));
-    sock.on('chat:message', (msg: ChatMessage) => {
-      setMessages((prev) => [...prev, msg]);
-    });
-    setSocket(sock);
-    return () => { sock.disconnect(); };
-  }, [chatAccess, token]);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (bottomRef.current) {
+      bottomRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
 
   async function loadMessages() {
     try {
       const res = await api.get('/chat/messages');
-      setMessages(res.data.messages);
-    } catch { }
+      setMessages(Array.isArray(res.data.messages) ? res.data.messages : []);
+    } catch {
+      setError('Qeydlər yüklənmədi');
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function sendMessage() {
-    if (!input.trim() || !socket) return;
-    socket.emit('chat:message', { message: input.trim() });
+    const text = input.trim();
+    if (!text || sending) return;
+    setSending(true);
     setInput('');
-  }
-
-  async function requestAccess() {
-    setRequestLoading(true);
     try {
-      await api.post('/auth/chat-access-request');
-      setRequestSent(true);
-    } catch (err: any) {
-      setError(err.response?.data?.error || t('errors.general'));
-    } finally { setRequestLoading(false); }
+      const res = await api.post('/chat/message', { message: text });
+      if (res.data.message) {
+        setMessages(prev => [...prev, res.data.message]);
+      }
+    } catch {
+      setError('Göndərilmədi');
+      setInput(text);
+    } finally {
+      setSending(false);
+    }
   }
 
-  if (chatAccess === 'none' || chatAccess === 'denied') {
-    return (
-      <div className="max-w-lg mx-auto py-12 text-center">
-        <div className="text-4xl mb-4">💬</div>
-        <h2 className="text-lg font-semibold text-gray-800 mb-2">{t('chat.title')}</h2>
-        <p className="text-sm text-gray-500 mb-6">{t('chat.noAccess')}</p>
-        {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-xs text-red-700">{error}</div>}
-        {requestSent ? (
-          <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">{t('chat.requestSent')}</div>
-        ) : (
-          <button onClick={requestAccess} disabled={requestLoading}
-            className="px-6 py-2.5 text-sm font-medium text-white rounded-lg bg-gray-800 hover:bg-gray-900 disabled:opacity-50 transition-colors">
-            {requestLoading ? t('common.loading') : t('chat.requestAccess')}
-          </button>
-        )}
-      </div>
-    );
-  }
-
-  if (chatAccess === 'pending') {
-    return (
-      <div className="max-w-lg mx-auto py-12 text-center">
-        <div className="text-4xl mb-4">⏳</div>
-        <h2 className="text-lg font-semibold text-gray-800 mb-2">{t('chat.title')}</h2>
-        <p className="text-sm text-gray-500">{t('chat.pending')}</p>
-      </div>
-    );
+  function handleKey(e: React.KeyboardEvent) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
   }
 
   return (
-    <div className="max-w-3xl flex flex-col" style={{ height: 'calc(100vh - 120px)' }}>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-gray-800">{t('chat.title')}</h2>
-        <span className={`flex items-center gap-1.5 text-xs ${connected ? 'text-green-600' : 'text-gray-400'}`}>
-          <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-gray-300'}`} />
-          {connected ? 'Online' : 'Offline'}
-        </span>
+    <div style={{ maxWidth: 720, display: 'flex', flexDirection: 'column', height: 'calc(100vh - 120px)' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div>
+          <h2 style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', margin: 0 }}>Qeydlər</h2>
+          <p style={{ fontSize: 12, color: '#94a3b8', margin: '2px 0 0' }}>{messages.length} qeyd</p>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#f0fdf4', border: '1px solid #d1fae5', borderRadius: 999 }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#16a34a', display: 'inline-block' }} />
+          <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 600 }}>Aktiv</span>
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-3">
-        {messages.length === 0 && (
-          <div className="text-center text-gray-400 text-sm py-8">{t('common.noData')}</div>
+      {/* Messages */}
+      <div style={{ flex: 1, overflowY: 'auto', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {loading && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 12, color: '#94a3b8', fontSize: 13 }}>
+            <div className="loading-spinner" />
+            Yüklənir...
+          </div>
         )}
-        {messages.map((msg) => {
+
+        {!loading && messages.length === 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 8, color: '#94a3b8' }}>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+            </svg>
+            <p style={{ fontSize: 13, margin: 0 }}>Hələ heç bir qeyd yoxdur</p>
+            <p style={{ fontSize: 12, margin: 0 }}>Aşağıdan ilk qeydinizi yazın</p>
+          </div>
+        )}
+
+        {!loading && messages.map((msg) => {
           const isMe = msg.userId === user?.id;
           return (
-            <div key={msg.id} className={`flex gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${isMe ? 'bg-gray-800 text-white' : 'bg-gray-200 text-gray-700'}`}>
+            <div key={msg.id} style={{ display: 'flex', gap: 10, flexDirection: isMe ? 'row-reverse' : 'row' }}>
+              <div style={{ width: 28, height: 28, borderRadius: '50%', background: isMe ? '#3b82f6' : '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
                 {msg.userName.charAt(0).toUpperCase()}
               </div>
-              <div className={`max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
-                <span className="text-xs text-gray-400 mb-0.5">{isMe ? 'Siz' : msg.userName}</span>
-                <div className={`px-3 py-2 rounded-xl text-sm ${isMe ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-800'}`}>
+              <div style={{ maxWidth: '70%', display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
+                <span style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>{isMe ? 'Siz' : msg.userName}</span>
+                <div style={{
+                  padding: '8px 14px',
+                  borderRadius: 16,
+                  borderBottomRightRadius: isMe ? 4 : 16,
+                  borderBottomLeftRadius: isMe ? 16 : 4,
+                  background: isMe ? 'linear-gradient(135deg,#3b82f6,#1d4ed8)' : '#f1f5f9',
+                  color: isMe ? '#fff' : '#0f172a',
+                  fontSize: 13,
+                  lineHeight: 1.5,
+                }}>
                   {msg.message}
                 </div>
-                <span className="text-xs text-gray-300 mt-0.5">
+                <span style={{ fontSize: 11, color: '#cbd5e1', marginTop: 4 }}>
                   {new Date(msg.createdAt).toLocaleTimeString('az-AZ', { hour: '2-digit', minute: '2-digit' })}
                 </span>
               </div>
@@ -124,18 +127,49 @@ export default function ChatPage() {
         <div ref={bottomRef} />
       </div>
 
-      <div className="mt-3 flex gap-2">
+      {error && (
+        <div style={{ marginTop: 8, padding: '8px 12px', background: '#fef2f2', color: '#dc2626', borderRadius: 8, fontSize: 12 }}>
+          {error}
+        </div>
+      )}
+
+      {/* Input */}
+      <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
         <input
-          value={input} onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-          placeholder={t('chat.typeMessage')}
-          className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-gray-400 transition-colors"
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={handleKey}
+          placeholder="Qeyd yazın..."
           maxLength={1000}
+          style={{ flex: 1, padding: '10px 16px', fontSize: 13, border: '1px solid #e2e8f0', borderRadius: 12, outline: 'none', background: '#fff', color: '#0f172a' }}
+          onFocus={e => { e.currentTarget.style.borderColor = '#3b82f6'; }}
+          onBlur={e => { e.currentTarget.style.borderColor = '#e2e8f0'; }}
         />
         <button
-          onClick={sendMessage} disabled={!input.trim() || !connected}
-          className="px-5 py-2.5 text-sm font-medium text-white bg-gray-800 rounded-xl disabled:opacity-40 hover:bg-gray-900 transition-colors">
-          {t('chat.send')}
+          onClick={sendMessage}
+          disabled={!input.trim() || sending}
+          style={{
+            padding: '10px 20px',
+            background: input.trim() && !sending ? 'linear-gradient(135deg,#3b82f6,#1d4ed8)' : '#e2e8f0',
+            color: input.trim() && !sending ? '#fff' : '#94a3b8',
+            border: 'none',
+            borderRadius: 12,
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: input.trim() && !sending ? 'pointer' : 'not-allowed',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            transition: 'all 0.2s',
+          }}>
+          {sending ? (
+            <div style={{ width: 12, height: 12, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+          ) : (
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+          )}
+          Göndər
         </button>
       </div>
     </div>

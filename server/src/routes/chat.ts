@@ -6,15 +6,21 @@ import { chatQueries } from '../db/database';
 
 const router = Router();
 
-router.get('/messages', authMiddleware, requireChatAccess, (_req: AuthRequest, res: Response) => {
-  const messages = chatQueries.getRecent.all();
-  res.json({ messages: messages.reverse() });
+router.get('/messages', authMiddleware, (_req: AuthRequest, res: Response) => {
+  const rows = chatQueries.getRecent.all() as any[];
+  const messages = rows.reverse().map(r => ({
+    id: r.id,
+    userId: r.user_id,
+    userName: r.user_name,
+    message: r.message,
+    createdAt: r.created_at.endsWith('Z') ? r.created_at : r.created_at.replace(' ', 'T') + 'Z',
+  }));
+  res.json({ messages });
 });
 
 router.post(
   '/message',
   authMiddleware,
-  requireChatAccess,
   [body('message').trim().notEmpty().isLength({ max: 1000 })],
   (req: AuthRequest, res: Response) => {
     const errors = validationResult(req);

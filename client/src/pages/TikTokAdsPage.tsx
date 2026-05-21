@@ -1,14 +1,18 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
 import DateRangePicker, { DateRangeValue } from '../components/common/DateRangePicker';
+import { useDateRange } from '../context/DateRangeContext';
 import { format, subDays } from 'date-fns';
 
 const fmt = (d: Date) => format(d, 'yyyy-MM-dd');
 const today = new Date();
 
 const IconTikTok = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.18 8.18 0 004.78 1.52V6.76a4.85 4.85 0 01-1.01-.07z"/>
+  <svg width="20" height="20" viewBox="0 0 48 48" fill="none">
+    <path d="M34 6h-5v22.5a5.5 5.5 0 11-5.5-5.5c.32 0 .63.03.93.08V17.5A11.5 11.5 0 1034 29V17.7A17.9 17.9 0 0042 20v-5.9A12.1 12.1 0 0134 6z" fill="white"/>
+    <path d="M36 4h-5v22.5a5.5 5.5 0 11-5.5-5.5c.32 0 .63.03.93.08V15.5A11.5 11.5 0 1036 27V15.7A17.9 17.9 0 0044 18v-5.9A12.1 12.1 0 0136 4z" fill="#69C9D0" opacity="0.7"/>
+    <path d="M32 4h-5v22.5a5.5 5.5 0 11-5.5-5.5c.32 0 .63.03.93.08V15.5A11.5 11.5 0 1032 27V15.7A17.9 17.9 0 0040 18v-5.9A12.1 12.1 0 0132 4z" fill="#EE1D52" opacity="0.7"/>
+    <path d="M30 6h-5v22.5a5.5 5.5 0 11-5.5-5.5c.32 0 .63.03.93.08V17.5A11.5 11.5 0 1030 29V17.7A17.9 17.9 0 0038 20v-5.9A12.1 12.1 0 0130 6z" fill="white"/>
   </svg>
 );
 
@@ -23,6 +27,7 @@ const fmtMoney = (v: number) => v ? '$' + v.toLocaleString('en-US', { minimumFra
 const fmtNum = (v: number) => v ? v.toLocaleString('en-US') : '—';
 
 export default function TikTokAdsPage() {
+  const { range: globalRange, setRange: setGlobalRange } = useDateRange();
   const [connected, setConnected] = useState(false);
   const [advertisers, setAdvertisers] = useState<Advertiser[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -32,26 +37,37 @@ export default function TikTokAdsPage() {
   const [error, setError] = useState('');
   const [manualId, setManualId] = useState('');
   const [addingId, setAddingId] = useState(false);
-  const [dateRange, setDateRange] = useState<DateRangeValue>({
-    startDate: fmt(subDays(today, 29)),
-    endDate: fmt(today),
-  });
+  const [dateRange, setDateRange] = useState<DateRangeValue>(globalRange);
 
   useEffect(() => {
-    loadStatus();
+    loadStatus(true);
     const params = new URLSearchParams(window.location.search);
-    if (params.get('connected')) loadStatus();
+    if (params.get('connected')) loadStatus(false);
     if (params.get('error')) setError(`OAuth xətası: ${params.get('error')}`);
   }, []);
 
-  async function loadStatus() {
+  async function loadStatus(autoFetch = false) {
     try {
       const res = await api.get('/tiktok/status');
       setConnected(res.data.connected);
       if (res.data.connected) {
         const advRes = await api.get('/tiktok/advertisers');
-        setAdvertisers(advRes.data.advertisers || []);
-        setSelectedIds(new Set((advRes.data.advertisers || []).map((a: Advertiser) => a.id)));
+        const advs: Advertiser[] = advRes.data.advertisers || [];
+        setAdvertisers(advs);
+        const ids = new Set<string>(advs.map((a: Advertiser) => a.id));
+        setSelectedIds(ids);
+        if (autoFetch && ids.size > 0) {
+          setLoading(true); setError(''); setCampaigns([]);
+          try {
+            const results = await Promise.all([...ids].map(async id => {
+              const r = await api.post('/tiktok/report', { advertiserId: id, ...dateRange });
+              return r.data.campaigns as Campaign[];
+            }));
+            setCampaigns(results.flat());
+          } catch (e: any) {
+            setError(e.response?.data?.error || 'Xəta baş verdi');
+          } finally { setLoading(false); }
+        }
       }
     } catch {}
   }
@@ -104,21 +120,21 @@ export default function TikTokAdsPage() {
   const totalClicks = campaigns.reduce((s, c) => s + c.clicks, 0);
 
   return (
-    <div className="max-w-5xl">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+    <div className="max-w-5xl page-enter">
+      {/* Hero Header */}
+      <div className="page-hero mb-5" style={{ background: 'linear-gradient(135deg, #0a0a0a, #1a1a2e)' }}>
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white" style={{ background: '#000' }}>
+          <div style={{ background: 'rgba(255,255,255,0.1)', borderRadius: 12, padding: 10 }}>
             <IconTikTok />
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#94a3b8' }}>Reklam Analitikası</p>
-            <h2 className="text-base font-bold" style={{ color: '#0f172a' }}>TikTok Ads</h2>
+            <p style={{ color: '#a78bfa', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Reklam Analitikası</p>
+            <h2 style={{ color: '#f8fafc', fontSize: 16, fontWeight: 700 }}>TikTok Ads</h2>
           </div>
         </div>
         {connected && (
           <button onClick={disconnect} className="px-3 py-2 text-xs rounded-lg transition-colors"
-            style={{ color: '#dc2626', border: '1px solid #fee2e2' }}>
+            style={{ color: '#fca5a5', border: '1px solid rgba(252,165,165,0.3)' }}>
             Ayır
           </button>
         )}
@@ -190,7 +206,7 @@ export default function TikTokAdsPage() {
 
           {/* Date + fetch */}
           <div className="rounded-2xl p-4 mb-5" style={{ background: '#fff', border: '1px solid #e2e8f0' }}>
-            <DateRangePicker value={dateRange} onChange={setDateRange} onApply={() => {}} accentColor="#000" />
+            <DateRangePicker value={dateRange} onChange={v => { setDateRange(v); setGlobalRange(v); }} onApply={() => {}} accentColor="#000" />
             <button onClick={fetchReport} disabled={loading}
               className="mt-3 px-5 py-2 text-xs font-semibold text-white rounded-lg disabled:opacity-50"
               style={{ background: '#000' }}>

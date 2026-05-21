@@ -26,8 +26,10 @@ const IconTable = () => (
   </svg>
 );
 const IconTikTok = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.18 8.18 0 004.78 1.52V6.76a4.85 4.85 0 01-1.01-.07z"/>
+  <svg width="16" height="16" viewBox="0 0 48 48" fill="none">
+    <path d="M30 6h-5v22.5a5.5 5.5 0 11-5.5-5.5c.32 0 .63.03.93.08V17.5A11.5 11.5 0 1030 29V17.7A17.9 17.9 0 0038 20v-5.9A12.1 12.1 0 0130 6z" fill="white"/>
+    <path d="M32 4h-5v22.5a5.5 5.5 0 11-5.5-5.5c.32 0 .63.03.93.08V15.5A11.5 11.5 0 1032 27V15.7A17.9 17.9 0 0040 18v-5.9A12.1 12.1 0 0132 4z" fill="#EE1D52" opacity="0.8"/>
+    <path d="M34 6h-5v22.5a5.5 5.5 0 11-5.5-5.5c.32 0 .63.03.93.08V17.5A11.5 11.5 0 1034 29V17.7A17.9 17.9 0 0042 20v-5.9A12.1 12.1 0 0134 6z" fill="#69C9D0" opacity="0.8"/>
   </svg>
 );
 const IconChat = () => (
@@ -36,57 +38,82 @@ const IconChat = () => (
   </svg>
 );
 
+const AnimatedLogo = () => (
+  <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+    <style>{`
+      @keyframes bar1 { 0%,100%{height:8px;y:16px} 50%{height:14px;y:10px} }
+      @keyframes bar2 { 0%,100%{height:14px;y:10px} 50%{height:20px;y:4px} }
+      @keyframes bar3 { 0%,100%{height:10px;y:14px} 50%{height:8px;y:16px} }
+      @keyframes bar4 { 0%,100%{height:18px;y:6px} 50%{height:12px;y:12px} }
+    `}</style>
+    <rect x="2" width="4" height="8" y="16" rx="1.5" fill="#3b82f6" style={{animation:'bar1 1.4s ease-in-out infinite'}}/>
+    <rect x="8" width="4" height="14" y="10" rx="1.5" fill="#60a5fa" style={{animation:'bar2 1.4s ease-in-out infinite 0.2s'}}/>
+    <rect x="14" width="4" height="10" y="14" rx="1.5" fill="#93c5fd" style={{animation:'bar3 1.4s ease-in-out infinite 0.4s'}}/>
+    <rect x="20" width="4" height="18" y="6" rx="1.5" fill="#3b82f6" style={{animation:'bar4 1.4s ease-in-out infinite 0.1s'}}/>
+    <line x1="1" y1="25" x2="27" y2="25" stroke="#3b82f6" strokeWidth="1.5" strokeOpacity="0.4"/>
+  </svg>
+);
+
 export default function Sidebar() {
   const { t } = useTranslation();
 
   const navItems = [
-    { to: '/', label: t('nav.dashboard'), Icon: IconDashboard, exact: true },
-    { to: '/meta-ads', label: t('nav.metaAds'), Icon: IconMeta, exact: false },
-    { to: '/google-ads', label: t('nav.googleAds'), Icon: IconGoogle, exact: false },
-    { to: '/tiktok-ads', label: 'TikTok Ads', Icon: IconTikTok, exact: false },
-    { to: '/report-table', label: 'Maliyyə Cədvəli', Icon: IconTable, exact: false },
-    { to: '/chat', label: t('nav.chat'), Icon: IconChat, exact: false },
+    { to: '/', label: t('nav.dashboard'), Icon: IconDashboard, exact: true, accent: '#3b82f6' },
+    { to: '/meta-ads', label: t('nav.metaAds'), Icon: IconMeta, exact: false, accent: '#1877F2' },
+    { to: '/google-ads', label: t('nav.googleAds'), Icon: IconGoogle, exact: false, accent: '#4285F4' },
+    { to: '/tiktok-ads', label: 'TikTok Ads', Icon: IconTikTok, exact: false, accent: '#ffffff' },
+    { to: '/report-table', label: 'Maliyyə Cədvəli', Icon: IconTable, exact: false, accent: '#10b981' },
+    { to: '/chat', label: t('nav.chat'), Icon: IconChat, exact: false, accent: '#a78bfa' },
   ];
 
   return (
-    <div className="w-56 flex-shrink-0 flex flex-col" style={{ background: '#0f172a' }}>
+    <div className="w-56 flex-shrink-0 flex flex-col" style={{
+      background: 'linear-gradient(180deg, #0a0f1e 0%, #0f172a 60%, #0d1425 100%)',
+      borderRight: '1px solid rgba(255,255,255,0.06)',
+    }}>
+      <style>{`
+        @keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.8)} }
+        .nav-item-hover:hover { background: rgba(255,255,255,0.07) !important; }
+      `}</style>
+
       {/* Logo */}
-      <div className="px-5 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-        <div className="text-sm font-bold tracking-widest uppercase" style={{ color: '#f8fafc', letterSpacing: '0.12em' }}>
-          Ads Audit
-        </div>
-        <div className="text-xs mt-1" style={{ color: '#64748b' }}>
-          Analytics Panel
+      <div className="px-5 py-5 flex items-center gap-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <AnimatedLogo />
+        <div>
+          <div className="font-bold" style={{ color: '#f8fafc', fontSize: '13px', letterSpacing: '0.08em' }}>
+            Ads <span style={{ color: '#3b82f6' }}>AUDIT</span>
+          </div>
+          <div className="text-xs" style={{ color: '#334155', fontSize: '10px', letterSpacing: '0.05em' }}>
+            Analytics Panel
+          </div>
         </div>
       </div>
 
       {/* Nav */}
       <nav className="flex-1 py-4 px-3 space-y-0.5">
-        {navItems.map(({ to, label, Icon, exact }) => (
+        {navItems.map(({ to, label, Icon, exact, accent }) => (
           <NavLink
             key={to}
             to={to}
             end={exact}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs transition-all duration-150 ${
-                isActive
-                  ? 'font-semibold'
-                  : 'font-normal'
-              }`
-            }
+            className="nav-item-hover flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition-all duration-200"
             style={({ isActive }) => isActive
-              ? { background: 'rgba(255,255,255,0.1)', color: '#f8fafc' }
-              : { color: '#94a3b8' }
+              ? { background: 'rgba(59,130,246,0.15)', color: '#f8fafc', borderLeft: `2px solid ${accent}`, paddingLeft: '10px' }
+              : { color: '#64748b', borderLeft: '2px solid transparent', paddingLeft: '10px' }
             }
           >
             {({ isActive }) => (
               <>
-                <span style={{ color: isActive ? '#f8fafc' : '#475569' }}>
+                <span style={{ color: isActive ? accent : '#475569', transition: 'color 0.2s' }}>
                   <Icon />
                 </span>
-                <span>{label}</span>
+                <span className="font-medium">{label}</span>
                 {isActive && (
-                  <span className="ml-auto w-1 h-4 rounded-full" style={{ background: '#3b82f6' }} />
+                  <span className="ml-auto w-1.5 h-1.5 rounded-full" style={{
+                    background: accent,
+                    boxShadow: `0 0 6px ${accent}`,
+                    animation: 'pulse-dot 2s ease-in-out infinite',
+                  }} />
                 )}
               </>
             )}
@@ -94,8 +121,10 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      <div className="px-4 py-3" style={{ borderTop: '1px solid rgba(255,255,255,0.07)', color: '#334155', fontSize: '11px' }}>
-        v1.0
+      <div className="px-4 py-3 flex items-center gap-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+        <span style={{ color: '#1e3a5f', fontSize: '10px' }}>v1.0</span>
+        <span style={{ color: '#1e3a5f', fontSize: '10px' }}>·</span>
+        <span style={{ color: '#1e3a5f', fontSize: '10px' }}>166 Ads Audit</span>
       </div>
     </div>
   );

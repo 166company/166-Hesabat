@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import axios from 'axios';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -17,6 +18,7 @@ import googleRouter from './routes/google';
 import chatRouter from './routes/chat';
 import reportTableRouter from './routes/reportTable';
 import tiktokRouter from './routes/tiktok';
+import dashboardRouter from './routes/dashboard';
 
 const PORT = process.env.PORT || 5000;
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
@@ -47,6 +49,7 @@ function seedAdminUser() {
         name: process.env.ADMIN_NAME || 'Admin',
         role: 'admin',
         status: 'approved',
+        chat_access: 'approved',
       });
       console.log(`[Seed] Admin yaradıldı: ${adminEmail} / şifrə: ${setupPassword}`);
     }
@@ -89,8 +92,52 @@ app.use('/api/tiktok', tiktokRouter);
 app.use('/api/meta', metaRouter);
 app.use('/api/google', googleRouter);
 app.use('/api/chat', chatRouter);
+app.use('/api/dashboard', dashboardRouter);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
+
+// Digital marketing news — SEJ RSS
+app.get('/api/news', async (_req, res) => {
+  const sources = [
+    'https://feeds.feedburner.com/SearchEngineJournal',
+    'https://www.searchenginejournal.com/feed/',
+    'https://feeds.feedburner.com/socialmediatoday/hCGe',
+  ];
+  function parseRss(xml: string) {
+    const items: { title: string; link: string; pubDate: string }[] = [];
+    const itemRegex = /<item[^>]*>([\s\S]*?)<\/item>/g;
+    let match: RegExpExecArray | null;
+    while ((match = itemRegex.exec(xml)) !== null && items.length < 6) {
+      const block = match[1];
+      const title = (/<title>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/title>/s.exec(block) || [])[1]?.trim() || '';
+      const link = (/<link>([^<]+)<\/link>/.exec(block) || [])[1]?.trim()
+        || (/<link\s+href="([^"]+)"/.exec(block) || [])[1]?.trim() || '';
+      const pubDate = (/<pubDate>([^<]+)<\/pubDate>/.exec(block) || [])[1]?.trim() || '';
+      if (title && link) items.push({ title, link, pubDate });
+    }
+    return items;
+  }
+  for (const rssUrl of sources) {
+    try {
+      const r = await axios.get(rssUrl, {
+        timeout: 12000,
+        maxRedirects: 5,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+          'Accept': 'text/xml, application/xml, application/rss+xml, */*',
+          'Accept-Language': 'en-US,en;q=0.9',
+        },
+        responseType: 'text',
+      });
+      const items = parseRss(r.data);
+      console.log(`[News] ${rssUrl} → ${items.length} items`);
+      if (items.length > 0) { res.json({ items }); return; }
+    } catch (e: any) {
+      console.warn(`[News] ${rssUrl} failed: ${e.code || e.message}`);
+    }
+  }
+  res.json({ items: [] });
+});
 
 // --- Socket.io for real-time chat ---
 io.use((socket, next) => {

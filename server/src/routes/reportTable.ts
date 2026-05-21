@@ -1,10 +1,11 @@
 import { Router, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
-import { reportQueries, metaTokenQueries, googleAuthQueries } from '../db/database';
+import { reportQueries, metaTokenQueries, googleAuthQueries, tiktokAuthQueries } from '../db/database';
 import { decrypt } from '../utils/encryption';
 import { validateToken, getBusinessSuites, getAdAccountsForBusiness, getFullAccountReport } from '../services/metaService';
 import { getAccessToken, getCampaignReport, getAdGroupSpend, getAdLevelSpend } from '../services/googleService';
+import { getCampaignReport as getTikTokReport, getAdvertiserInfo } from '../services/tiktokService';
 
 // Campaign type → column key
 function typeToColKey(type: string): string {
@@ -491,6 +492,58 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
         } catch (e) { console.error(`[AutoPopulate] Google customer ${customer.id}:`, e); }
       }));
     } catch (e) { console.error('[AutoPopulate] Google error:', e); }
+  }
+
+  // ══════════════════════════════════════════
+  // TIKTOK ADS
+  // ══════════════════════════════════════════
+  const tiktokAuth = tiktokAuthQueries.findByUser.get(userId) as any;
+  if (tiktokAuth?.access_token_encrypted) {
+    try {
+      const tiktokToken = decrypt(tiktokAuth.access_token_encrypted);
+      const advertiserIds: string[] = JSON.parse(tiktokAuth.advertiser_ids || '[]');
+
+      const lifeSection = allSectionRows.find(s =>
+        norm(s.sec.section_name).includes('life') || norm(s.sec.section_name).includes('vakansiya')
+      );
+
+      await Promise.all(advertiserIds.map(async (advId) => {
+        try {
+          const info = await getAdvertiserInfo(tiktokToken, advId);
+          const campaigns = await getTikTokReport(tiktokToken, advId, startDate, endDate, info.name);
+
+          for (const camp of campaigns) {
+            if (!camp.spend) continue;
+            const cNorm = norm(camp.name);
+
+            // Vakansiya kampaniyaları → Life bölməsi
+            const isVakansiya = cNorm.includes('vakansiya') || cNorm.includes('is elani') ||
+              cNorm.includes('surucu') || cNorm.includes('surucü') || cNorm.includes('dezinfaktor') ||
+              cNorm.includes('baca') || cNorm.includes('evakuator');
+
+            if (isVakansiya && lifeSection) {
+              const lifeSections = allSectionRows.filter(s =>
+                norm(s.sec.section_name).includes('life') || norm(s.sec.section_name).includes('vakansiya')
+              );
+              const loc = findRowByAccountName(camp.name, lifeSections);
+              add(loc || (lifeSection ? { secId: lifeSection.sec.id, rowId: lifeSection.rows[0]?.id } : null), 'tiktok', camp.spend);
+              continue;
+            }
+
+            // Kampaniya adına görə sətir tap
+            const loc = findRowByAccountName(camp.name, allSectionRows)
+              || findRowByAccountName(info.name, allSectionRows);
+            if (loc) {
+              add(loc, 'tiktok', camp.spend);
+            } else {
+              unmatched.push(`[TikTok] ${camp.name} (${info.name}) $${camp.spend.toFixed(2)}`);
+            }
+          }
+        } catch (e: any) {
+          console.error(`[AutoPopulate] TikTok ${advId}:`, e.message);
+        }
+      }));
+    } catch (e) { console.error('[AutoPopulate] TikTok error:', e); }
   }
 
   // ══════════════════════════════════════════

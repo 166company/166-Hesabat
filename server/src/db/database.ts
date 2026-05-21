@@ -148,8 +148,8 @@ export const userQueries = {
   findById: db.prepare('SELECT * FROM users WHERE id = ?'),
   findByEmail: db.prepare('SELECT * FROM users WHERE email = ?'),
   create: db.prepare(`
-    INSERT INTO users (id, email, password_hash, name, role, status)
-    VALUES (:id, :email, :password_hash, :name, :role, :status)
+    INSERT INTO users (id, email, password_hash, name, role, status, chat_access)
+    VALUES (:id, :email, :password_hash, :name, :role, :status, :chat_access)
   `),
   updateStatus: db.prepare(`
     UPDATE users SET status = :status, approved_at = :approved_at, approved_by = :approved_by
@@ -262,6 +262,7 @@ export const tiktokAuthQueries = {
   `),
   delete: db.prepare('DELETE FROM tiktok_auth WHERE user_id = ?'),
   updateAdvertiserIds: db.prepare('UPDATE tiktok_auth SET advertiser_ids = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?'),
+  findFirst: db.prepare('SELECT * FROM tiktok_auth LIMIT 1'),
 };
 
 // --- Error log queries ---

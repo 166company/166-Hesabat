@@ -23,63 +23,90 @@ export default function RegisterPage() {
       const errs = err.response?.data?.errors;
       if (errs?.length) setError(errs.map((x: any) => x.msg).join(', '));
       else setError(err.response?.data?.error || t('errors.general'));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  if (success) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-        <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center">
-          <div className="text-4xl mb-4">✅</div>
-          <h2 className="text-lg font-semibold text-gray-800 mb-2">Qeydiyyat tamamlandı</h2>
-          <p className="text-sm text-gray-600 mb-6">{t('auth.pendingApproval')}</p>
-          <p className="text-xs text-gray-500">{t('auth.approvalInfo')}</p>
-          <Link to="/login" className="mt-6 inline-block text-sm text-blue-600 hover:underline">{t('auth.login')}</Link>
-        </div>
-      </div>
-    );
+    } finally { setLoading(false); }
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
-      <div className="absolute top-4 right-4"><LanguageSelector /></div>
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <div className="text-3xl font-bold text-gray-800 mb-1">{t('app.title')}</div>
-          <div className="text-sm text-gray-500">{t('app.subtitle')}</div>
-        </div>
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-          <h2 className="text-lg font-semibold text-gray-800 mb-6">{t('auth.register')}</h2>
-          {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">{error}</div>}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs text-gray-600 mb-1.5 font-medium">{t('auth.name')}</label>
-              <input type="text" value={name} onChange={(e) => setName(e.target.value)} required
-                className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-500 transition-colors" />
+    <div className="min-h-screen flex items-center justify-center px-6" style={{ background: 'linear-gradient(135deg, #0a0f1e 0%, #0f172a 60%, #0d1425 100%)' }}>
+      <style>{`
+        @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+        .auth-input2 { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #f8fafc; border-radius: 10px; padding: 10px 14px; font-size: 14px; width: 100%; outline: none; transition: border-color 0.2s; }
+        .auth-input2::placeholder { color: #475569; }
+        .auth-input2:focus { border-color: #3b82f6; background: rgba(59,130,246,0.08); }
+      `}</style>
+      <div className="absolute top-4 right-4" style={{ zIndex: 10 }}><LanguageSelector /></div>
+
+      <div style={{ width: '100%', maxWidth: 400, animation: 'fadeUp 0.6s ease-out' }}>
+        {success ? (
+          <div style={{
+            background: 'rgba(255,255,255,0.05)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: 20,
+            padding: 40,
+            backdropFilter: 'blur(20px)',
+            textAlign: 'center',
+          }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
+            <h2 style={{ color: '#f8fafc', fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Qeydiyyat tamamlandı</h2>
+            <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 6 }}>{t('auth.pendingApproval')}</p>
+            <p style={{ color: '#64748b', fontSize: 12, marginBottom: 24 }}>{t('auth.approvalInfo')}</p>
+            <Link to="/login" style={{ color: '#60a5fa', fontSize: 14, fontWeight: 600 }}>{t('auth.login')} →</Link>
+          </div>
+        ) : (
+          <div style={{
+            background: 'rgba(255,255,255,0.05)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: 20,
+            padding: 36,
+            backdropFilter: 'blur(20px)',
+          }}>
+            <div style={{ textAlign: 'center', marginBottom: 24 }}>
+              <div style={{ color: '#f8fafc', fontSize: 20, fontWeight: 800, marginBottom: 4 }}>
+                Ads <span style={{ color: '#3b82f6' }}>AUDIT</span>
+              </div>
+              <p style={{ color: '#64748b', fontSize: 13 }}>Yeni hesab yaradın</p>
             </div>
-            <div>
-              <label className="block text-xs text-gray-600 mb-1.5 font-medium">{t('auth.email')}</label>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
-                className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-500 transition-colors" />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-600 mb-1.5 font-medium">{t('auth.password')}</label>
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-500 transition-colors" />
-            </div>
-            <button type="submit" disabled={loading}
-              className="w-full py-2.5 text-sm font-medium text-white rounded-lg transition-colors disabled:opacity-50"
-              style={{ backgroundColor: '#4285F4' }}>
-              {loading ? t('common.loading') : t('auth.registerBtn')}
-            </button>
-          </form>
-          <p className="mt-4 text-xs text-center text-gray-500">
-            {t('auth.hasAccount')}{' '}
-            <Link to="/login" className="text-blue-600 hover:underline font-medium">{t('auth.login')}</Link>
-          </p>
-        </div>
+
+            {error && (
+              <div style={{ marginBottom: 16, padding: '10px 14px', background: 'rgba(220,38,38,0.12)', border: '1px solid rgba(220,38,38,0.3)', borderRadius: 10, color: '#fca5a5', fontSize: 12 }}>
+                {error}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {[
+                { label: t('auth.name'), type: 'text', val: name, set: setName, ph: 'Ad Soyad' },
+                { label: t('auth.email'), type: 'email', val: email, set: setEmail, ph: 'email@example.com' },
+                { label: t('auth.password'), type: 'password', val: password, set: setPassword, ph: '••••••••' },
+              ].map(f => (
+                <div key={f.label}>
+                  <label style={{ color: '#94a3b8', fontSize: 12, fontWeight: 500, marginBottom: 6, display: 'block' }}>{f.label}</label>
+                  <input type={f.type} value={f.val} onChange={e => f.set(e.target.value)} required
+                    className="auth-input2" placeholder={f.ph} minLength={f.type === 'password' ? 8 : undefined} />
+                </div>
+              ))}
+              <button type="submit" disabled={loading} style={{
+                marginTop: 8,
+                padding: '12px',
+                background: loading ? 'rgba(59,130,246,0.5)' : 'linear-gradient(135deg, #3b82f6, #1d4ed8)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 10,
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: loading ? 'not-allowed' : 'pointer',
+                boxShadow: '0 4px 16px rgba(59,130,246,0.3)',
+              }}>
+                {loading ? t('common.loading') : t('auth.registerBtn')}
+              </button>
+            </form>
+
+            <p style={{ marginTop: 20, fontSize: 13, textAlign: 'center', color: '#475569' }}>
+              {t('auth.hasAccount')}{' '}
+              <Link to="/login" style={{ color: '#60a5fa', textDecoration: 'none', fontWeight: 600 }}>{t('auth.login')}</Link>
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

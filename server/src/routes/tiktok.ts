@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
+import axios from 'axios';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
 import { tiktokAuthQueries } from '../db/database';
 import { encrypt, decrypt } from '../utils/encryption';
@@ -66,9 +67,15 @@ router.post('/report', authMiddleware, async (req: AuthRequest, res: Response) =
   const auth = tiktokAuthQueries.findByUser.get(req.user!.id) as any;
   if (!auth) { res.status(403).json({ error: 'TikTok qoşulmayıb' }); return; }
   const accessToken = decrypt(auth.access_token_encrypted);
-  const info = await getAdvertiserInfo(accessToken, advertiserId);
-  const campaigns = await getCampaignReport(accessToken, advertiserId, startDate, endDate, info.name);
-  res.json({ advertiserId, campaigns });
+  try {
+    const info = await getAdvertiserInfo(accessToken, advertiserId);
+    const campaigns = await getCampaignReport(accessToken, advertiserId, startDate, endDate, info.name);
+    console.log(`[TikTok] report ${advertiserId}: ${campaigns.length} campaigns`);
+    res.json({ advertiserId, campaigns });
+  } catch (e: any) {
+    console.error('[TikTok] report route error:', e.message, e.response?.data);
+    res.status(500).json({ error: e.message, detail: e.response?.data });
+  }
 });
 
 // Manual advertiser ID əlavə et

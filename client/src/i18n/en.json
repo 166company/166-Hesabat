@@ -136,6 +136,7 @@
     "subtitle": "Select an advertising platform and start your analytics.",
     "metaDesc": "Spend and metrics analysis for Meta Business Suite accounts. Reports at campaign, account and portfolio level.",
     "googleDesc": "Google Ads campaign analysis. Label, keyword statistics and account-level spend tracking.",
+    "tiktokDesc": "TikTok Ads campaign analysis. Spend, impressions and click statistics across ad accounts.",
     "financeTitle": "Finance Table",
     "financeLabel": "FINANCE",
     "financeDesc": "Service-based financial report with automatically collected spend from Meta and Google Ads.",

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
+import { useDateRange } from '../context/DateRangeContext';
 import { MetaBusinessSuite, MetaReport, MetaAccountReport } from '../types';
 import DateRangePicker, { DateRangeValue } from '../components/common/DateRangePicker';
 import MetricsCard from '../components/common/MetricsCard';
@@ -14,12 +15,10 @@ function parseNum(v?: string | null) { return v ? parseFloat(v) || 0 : 0; }
 
 export default function MetaAdsPage() {
   const { t } = useTranslation();
+  const { range: globalRange, setRange: setGlobalRange } = useDateRange();
   const [suites, setSuites] = useState<MetaBusinessSuite[]>([]);
   const [selectedSuiteId, setSelectedSuiteId] = useState('');
-  const [dateRange, setDateRange] = useState<DateRangeValue>({
-    startDate: fmt(subDays(today, 29)),
-    endDate: fmt(today),
-  });
+  const [dateRange, setDateRange] = useState<DateRangeValue>(globalRange);
   const [report, setReport] = useState<MetaReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -40,14 +39,25 @@ export default function MetaAdsPage() {
   // Hesab expand/collapse
   const [expandedAccounts, setExpandedAccounts] = useState<Set<string>>(new Set());
 
-  useEffect(() => { loadSuites(); }, []);
+  useEffect(() => { loadSuites(true); }, []);
 
-  async function loadSuites() {
+  async function loadSuites(autoFetch = false) {
     try {
       const res = await api.get('/meta/business-suites');
       setSuites(res.data.businessSuites);
-      if (res.data.businessSuites.length > 0 && !selectedSuiteId)
-        setSelectedSuiteId(res.data.businessSuites[0].id);
+      if (res.data.businessSuites.length > 0) {
+        const firstId = res.data.businessSuites[0].id;
+        if (!selectedSuiteId) setSelectedSuiteId(firstId);
+        if (autoFetch) {
+          setLoading(true); setError('');
+          try {
+            const r = await api.post('/meta/report', { tokenId: firstId, ...dateRange });
+            setReport(r.data);
+          } catch (e: any) {
+            setError(e.response?.data?.error || 'Xəta baş verdi');
+          } finally { setLoading(false); }
+        }
+      }
     } catch { }
   }
 
@@ -162,20 +172,24 @@ export default function MetaAdsPage() {
   const isAllAccSelected = allReports.length > 0 && allReports.every(r => selectedAccountIds.has(r.account.id));
 
   return (
-    <div className="max-w-6xl">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+    <div className="max-w-6xl page-enter">
+      {/* Hero Header */}
+      <div className="page-hero mb-5" style={{ background: 'linear-gradient(135deg, #0f172a, #1e3a5f)' }}>
         <div className="flex items-center gap-3">
-          {/* Meta logo */}
-          <svg width="56" height="22" viewBox="0 0 74 46" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M0 23C0 10 8 0 18 0C25 0 30 5 33 12C36 19 37 26 37 33C37 26 38 19 41 12C44 5 49 0 56 0C66 0 74 10 74 23C74 36 66 46 56 46C49 46 44 41 41 34C38 27 37 23 37 23C37 23 36 27 33 34C30 41 25 46 18 46C8 46 0 36 0 23Z" fill="#1877F2"/>
-          </svg>
-          <h2 className="text-lg font-semibold text-[#0082FB]">{t('meta.title')}</h2>
+          <div style={{ background: 'rgba(24,119,242,0.2)', borderRadius: 12, padding: 10 }}>
+            <svg width="28" height="18" viewBox="0 0 74 46" fill="none">
+              <path d="M0 23C0 10 8 0 18 0C25 0 30 5 33 12C36 19 37 26 37 33C37 26 38 19 41 12C44 5 49 0 56 0C66 0 74 10 74 23C74 36 66 46 56 46C49 46 44 41 41 34C38 27 37 23 37 23C37 23 36 27 33 34C30 41 25 46 18 46C8 46 0 36 0 23Z" fill="#1877F2"/>
+            </svg>
+          </div>
+          <div>
+            <p style={{ color: '#60a5fa', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Reklam Analitikası</p>
+            <h2 style={{ color: '#f8fafc', fontSize: 16, fontWeight: 700 }}>{t('meta.title')}</h2>
+          </div>
         </div>
         <div className="flex gap-2">
           {report && <ExportButton data={exportData} filename="meta-ads-report" accentColor="#0082FB" />}
           <button onClick={() => { setShowAddToken(!showAddToken); resetWizard(); }}
-            className="px-3 py-2 text-xs font-medium text-white rounded-lg bg-[#0082FB] hover:bg-[#0064D2] transition-colors">
+            className="btn-primary" style={{ background: '#1877F2' }}>
             + {t('meta.addToken')}
           </button>
         </div>
@@ -261,21 +275,22 @@ export default function MetaAdsPage() {
       )}
 
       {suites.length === 0 && !showAddToken && (
-        <div className="mb-6 p-6 bg-[#e8f4ff] border border-[#0082FB]/20 rounded-xl text-center">
-          <div className="text-2xl mb-2">📘</div>
-          <p className="text-sm text-gray-600">{t('meta.noSuites')}</p>
-          <button onClick={() => setShowAddToken(true)} className="mt-3 text-xs text-[#0082FB] hover:underline">+ {t('meta.addToken')}</button>
+        <div className="mb-6 rounded-2xl p-10 text-center" style={{ background: '#fff', border: '1px solid #e2e8f0' }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>📘</div>
+          <p className="text-sm font-semibold mb-1" style={{ color: '#0f172a' }}>{t('meta.noSuites')}</p>
+          <p className="text-xs mb-4" style={{ color: '#94a3b8' }}>Facebook Access Token əlavə edin</p>
+          <button onClick={() => setShowAddToken(true)} className="btn-primary" style={{ background: '#1877F2' }}>+ {t('meta.addToken')}</button>
         </div>
       )}
 
       {suites.length > 0 && (
         <div className="mb-6">
-          <DateRangePicker value={dateRange} onChange={setDateRange} onApply={fetchReport} accentColor="#0082FB" />
+          <DateRangePicker value={dateRange} onChange={v => { setDateRange(v); setGlobalRange(v); }} onApply={fetchReport} accentColor="#0082FB" />
         </div>
       )}
 
-      {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">{error}</div>}
-      {loading && <div className="text-center py-12 text-gray-400 text-sm">{t('common.loading')}</div>}
+      {error && <div className="mb-4 p-3 rounded-xl text-xs" style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fee2e2' }}>{error}</div>}
+      {loading && <div className="flex flex-col items-center justify-center py-16 gap-4"><div className="loading-spinner"/><span style={{ color: '#94a3b8', fontSize: 13 }}>{t('common.loading')}</span></div>}
 
       {report && allReports.length > 0 && (
         <>
