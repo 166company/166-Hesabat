@@ -204,8 +204,10 @@ app.use((err: Error, req: express.Request, res: express.Response, _next: express
     // Render free tier cold start-ın qarşısını al — hər 14 dəq self-ping
     if (process.env.NODE_ENV === 'production') {
       const serverUrl = process.env.SERVER_PUBLIC_URL || `https://one66-hesabat.onrender.com`;
-      setInterval(() => {
+      setInterval(async () => {
         axios.get(`${serverUrl}/api/health`).catch(() => {});
+        // Neon-u da oyaq saxla
+        try { await (await import('./db/database')).default.query('SELECT 1'); } catch {}
       }, 14 * 60 * 1000);
       console.log('[Server] Self-ping aktiv edildi (hər 14 dəq)');
     }
