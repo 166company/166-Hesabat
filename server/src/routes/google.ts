@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
-import { googleAuthQueries } from '../db/database';
+import { googleAuthQueries, cacheQueries } from '../db/database';
 import { encrypt, decrypt, generateNumericCode } from '../utils/encryption';
 import {
   getAuthUrl,
@@ -193,6 +193,11 @@ router.post('/report', authMiddleware, async (req: AuthRequest, res: Response) =
     return;
   }
 
+  // Cache yoxla
+  const cacheKey = `google:${customerId}:${startDate}:${endDate}:${prevStartDate||''}:${prevEndDate||''}`;
+  const cached = await cacheQueries.get(cacheKey);
+  if (cached) { res.json(cached); return; }
+
   const auth = await googleAuthQueries.findByUser(userId)
     ?? await googleAuthQueries.findFirst();
   if (!auth || !auth.is_verified) {
@@ -245,14 +250,14 @@ router.post('/report', authMiddleware, async (req: AuthRequest, res: Response) =
       avgCpc: microsToCurrency(c.avgCpcMicros),
     }));
 
-    res.json({
-      customerId,
-      startDate,
-      endDate,
+    const result = {
+      customerId, startDate, endDate,
       campaigns: formatted,
       previousCampaigns: formattedPrev,
       accountTopKeywords: formattedAccountTopKeywords,
-    });
+    };
+    await cacheQueries.set(cacheKey, result, 6);
+    res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: `Kampaniya məlumatları alınarkən xəta: ${err.message}` });
   }

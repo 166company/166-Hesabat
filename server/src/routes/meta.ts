@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
-import { metaTokenQueries } from '../db/database';
+import { metaTokenQueries, cacheQueries } from '../db/database';
 import { encrypt, decrypt } from '../utils/encryption';
 import {
   validateToken,
@@ -123,6 +123,11 @@ router.post('/report', async (req: AuthRequest, res: Response) => {
     return;
   }
 
+  // Cache yoxla
+  const cacheKey = `meta:${tokenId}:${startDate}:${endDate}:${prevStartDate||''}:${prevEndDate||''}`;
+  const cached = await cacheQueries.get(cacheKey);
+  if (cached) { res.json(cached); return; }
+
   const tokenRecord = await metaTokenQueries.findById(tokenId, userId);
   if (!tokenRecord) { res.status(404).json({ error: 'Token tapılmadı' }); return; }
 
@@ -161,12 +166,14 @@ router.post('/report', async (req: AuthRequest, res: Response) => {
     )
   );
 
-  res.json({
+  const result = {
     businessSuiteId: tokenRecord.business_suite_id,
     businessSuiteName: tokenRecord.business_suite_name,
     startDate, endDate,
     reports,
-  });
+  };
+  await cacheQueries.set(cacheKey, result, 6);
+  res.json(result);
 });
 
 export default router;

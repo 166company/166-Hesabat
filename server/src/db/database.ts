@@ -140,6 +140,18 @@ export async function initDatabase(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages(created_at DESC);
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS platform_cache (
+      id TEXT PRIMARY KEY,
+      cache_key TEXT UNIQUE NOT NULL,
+      data TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      expires_at TIMESTAMPTZ NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_platform_cache_key ON platform_cache(cache_key);
+    CREATE INDEX IF NOT EXISTS idx_platform_cache_expires ON platform_cache(expires_at);
+  `);
+
   // Migration: add exclude_patterns if column doesn't exist yet
   try {
     await pool.query(`ALTER TABLE report_rows ADD COLUMN exclude_patterns TEXT NOT NULL DEFAULT '[]'`);
@@ -339,6 +351,24 @@ export const tiktokAuthQueries = {
     pool.query('UPDATE tiktok_auth SET advertiser_ids = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2', [advertiser_ids, user_id]),
   findFirst: () =>
     pool.query('SELECT * FROM tiktok_auth LIMIT 1').then(r => r.rows[0] ?? null),
+};
+
+// --- Platform cache queries ---
+export const cacheQueries = {
+  get: (key: string) =>
+    pool.query(
+      `SELECT data FROM platform_cache WHERE cache_key = $1 AND expires_at > NOW()`,
+      [key]
+    ).then(r => r.rows[0] ? JSON.parse(r.rows[0].data) : null),
+  set: (key: string, data: any, ttlHours = 6) =>
+    pool.query(
+      `INSERT INTO platform_cache (id, cache_key, data, expires_at)
+       VALUES ($1, $2, $3, NOW() + INTERVAL '${ttlHours} hours')
+       ON CONFLICT(cache_key) DO UPDATE SET data = $3, expires_at = NOW() + INTERVAL '${ttlHours} hours', created_at = NOW()`,
+      [require('crypto').randomUUID(), key, JSON.stringify(data)]
+    ),
+  invalidate: (keyPrefix: string) =>
+    pool.query(`DELETE FROM platform_cache WHERE cache_key LIKE $1`, [`${keyPrefix}%`]),
 };
 
 // --- Error log queries ---

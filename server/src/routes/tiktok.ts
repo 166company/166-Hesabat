@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
-import { tiktokAuthQueries } from '../db/database';
+import { tiktokAuthQueries, cacheQueries } from '../db/database';
 import { encrypt, decrypt } from '../utils/encryption';
 import { getAuthUrl, exchangeCodeForToken, getCampaignReport, getAdvertiserInfo } from '../services/tiktokService';
 
@@ -66,6 +66,10 @@ router.post('/report', authMiddleware, async (req: AuthRequest, res: Response) =
   if (!advertiserId || !startDate || !endDate) {
     res.status(400).json({ error: 'advertiserId, startDate, endDate tələb olunur' }); return;
   }
+  const cacheKey = `tiktok:${advertiserId}:${startDate}:${endDate}`;
+  const cached = await cacheQueries.get(cacheKey);
+  if (cached) { res.json(cached); return; }
+
   const auth = await tiktokAuthQueries.findByUser(req.user!.id)
     ?? await tiktokAuthQueries.findFirst();
   if (!auth) { res.status(403).json({ error: 'TikTok qoşulmayıb' }); return; }
@@ -73,10 +77,10 @@ router.post('/report', authMiddleware, async (req: AuthRequest, res: Response) =
   try {
     const info = await getAdvertiserInfo(accessToken, advertiserId);
     const campaigns = await getCampaignReport(accessToken, advertiserId, startDate, endDate, info.name);
-    console.log(`[TikTok] report ${advertiserId}: ${campaigns.length} campaigns`);
-    res.json({ advertiserId, campaigns });
+    const result = { advertiserId, campaigns };
+    await cacheQueries.set(cacheKey, result, 6);
+    res.json(result);
   } catch (e: any) {
-    console.error('[TikTok] report route error:', e.message, e.response?.data);
     res.status(500).json({ error: e.message, detail: e.response?.data });
   }
 });
