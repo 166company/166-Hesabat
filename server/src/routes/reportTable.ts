@@ -567,4 +567,38 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
   res.json({ populated: Object.keys(results).length, unmatched, message: `${Object.keys(results).length} xana dolduruldu` });
 });
 
+// Debug Meta hesablarını göstər
+router.get('/debug-meta', async (req: AuthRequest, res: Response) => {
+  const userId = req.user!.id;
+  let metaTokens = await metaTokenQueries.findByUser(userId);
+  if (!metaTokens.length) metaTokens = await metaTokenQueries.findAll();
+  const result: any[] = [];
+  for (const tk of metaTokens) {
+    try {
+      const accessToken = decrypt(tk.access_token_encrypted);
+      const valid = await validateToken(accessToken);
+      if (!valid.valid) { result.push({ token: tk.id, valid: false }); continue; }
+      const allSuites = await getBusinessSuites(accessToken);
+      const allowed = allSuites.filter(s => isAllowedPortfolio(s.name));
+      const accountList: any[] = [];
+      for (const suite of allowed) {
+        const accs = await getAdAccountsForBusiness(suite.id, accessToken);
+        for (const acc of accs) {
+          const accNorm = norm(acc.name || '');
+          const isSkipped = accNorm.includes('logistika') || (accNorm.includes('global') && !accNorm.includes('tech'));
+          accountList.push({ name: acc.name, norm: accNorm, skipped: isSkipped });
+        }
+      }
+      result.push({
+        token: tk.business_suite_name,
+        valid: true,
+        allSuites: allSuites.map(s => s.name),
+        allowedSuites: allowed.map(s => s.name),
+        accounts: accountList,
+      });
+    } catch (e: any) { result.push({ token: tk.id, error: e.message }); }
+  }
+  res.json(result);
+});
+
 export default router;
