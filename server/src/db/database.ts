@@ -128,6 +128,18 @@ export async function initDatabase(): Promise<void> {
     );
   `);
 
+  // Indexes for performance
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+    CREATE INDEX IF NOT EXISTS idx_report_sections_user ON report_sections(user_id);
+    CREATE INDEX IF NOT EXISTS idx_report_rows_section ON report_rows(section_id);
+    CREATE INDEX IF NOT EXISTS idx_report_cells_section ON report_cells(section_id);
+    CREATE INDEX IF NOT EXISTS idx_meta_tokens_user ON meta_tokens(user_id);
+    CREATE INDEX IF NOT EXISTS idx_google_auth_user ON google_auth(user_id);
+    CREATE INDEX IF NOT EXISTS idx_tiktok_auth_user ON tiktok_auth(user_id);
+    CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages(created_at DESC);
+  `);
+
   // Migration: add exclude_patterns if column doesn't exist yet
   try {
     await pool.query(`ALTER TABLE report_rows ADD COLUMN exclude_patterns TEXT NOT NULL DEFAULT '[]'`);

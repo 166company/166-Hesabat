@@ -15,6 +15,10 @@ export interface AuthRequest extends Request {
 
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme_secret_32chars_minimum!!';
 
+// 5 dəqiqəlik user cache — hər sorğuda DB-yə getməsin
+const userCache = new Map<string, { user: any; exp: number }>();
+const CACHE_TTL = 5 * 60 * 1000;
+
 export function signToken(payload: object): string {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return jwt.sign(payload, JWT_SECRET, { expiresIn: (process.env.JWT_EXPIRES_IN || '7d') as any });
@@ -29,12 +33,17 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
   const token = header.slice(7);
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as jwt.JwtPayload;
+    const cached = userCache.get(decoded.id);
+    if (cached && cached.exp > Date.now()) {
+      req.user = cached.user;
+      return next();
+    }
     userQueries.findById(decoded.id).then(user => {
       if (!user || user.status !== 'approved') {
         res.status(401).json({ error: 'Account not approved or not found' });
         return;
       }
-      req.user = {
+      const userData = {
         id: user.id,
         email: user.email,
         name: user.name,
@@ -42,6 +51,8 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
         status: user.status,
         chatAccess: user.chat_access,
       };
+      userCache.set(decoded.id, { user: userData, exp: Date.now() + CACHE_TTL });
+      req.user = userData;
       next();
     }).catch(() => {
       res.status(401).json({ error: 'Unauthorized' });
