@@ -167,13 +167,15 @@ export default function DashboardPage() {
   const [spend, setSpend] = useState({ google: 0, meta: 0, tiktok: 0, total: 0 });
   const [spendLoading, setSpendLoading] = useState(false);
 
-  useEffect(() => {
+  function fetchSpend(r = range) {
     setSpendLoading(true);
-    api.get('/dashboard/summary', { params: { startDate: range.startDate, endDate: range.endDate } })
-      .then(r => setSpend(r.data))
+    api.get('/dashboard/summary', { params: { startDate: r.startDate, endDate: r.endDate } })
+      .then(res => setSpend(res.data))
       .catch(() => {})
       .finally(() => setSpendLoading(false));
-  }, [range.startDate, range.endDate]);
+  }
+
+  useEffect(() => { fetchSpend(); }, [range.startDate, range.endDate]);
 
   const platformSpend = spend;
 
@@ -215,7 +217,7 @@ export default function DashboardPage() {
             <DateRangePicker
               value={range}
               onChange={setRange}
-              onApply={() => {}}
+              onApply={() => fetchSpend()}
               accentColor="#0f172a"
             />
             {spendLoading && <span style={{ fontSize: 11, color: '#94a3b8', whiteSpace: 'nowrap' }}>Yüklənir...</span>}
