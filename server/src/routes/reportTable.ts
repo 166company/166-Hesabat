@@ -286,6 +286,7 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
         // Hesabata daxil edilməyən hesablar (166 Global, Logistika və s.)
         const isSkippedAccount =
           accNorm.includes('logistika') ||
+          accNorm.includes('cargo') ||
           (accNorm.includes('global') && !accNorm.includes('tech'));
         if (isSkippedAccount) { console.log('[Meta] SKIP:', accName); return; }
 
