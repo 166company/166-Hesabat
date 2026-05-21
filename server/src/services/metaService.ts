@@ -130,37 +130,35 @@ export async function getCampaigns(
 ): Promise<MetaCampaign[]> {
   const accId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
   try {
-    // Campaigns-i birbaşa insights ilə birlikdə çək — yalnız həmin dövrdə xərc edənlər
-    const data = await graphGet<{ data: Array<{ id: string; name: string; status: string; objective: string }> }>(
-      `/${accId}/campaigns`,
-      { fields: 'id,name,status,objective', limit: '200' },
+    // Bütün kampaniyaları VƏ onların insights-ini TEK sorğuda çək (batch)
+    const data = await graphGet<{ data: Array<{ campaign_id: string; campaign_name: string; spend: string; impressions: string; clicks: string; reach: string; cpm: string; cpc: string; ctr: string }> }>(
+      `/${accId}/insights`,
+      {
+        level: 'campaign',
+        fields: 'campaign_id,campaign_name,spend,impressions,clicks,reach,cpm,cpc,ctr',
+        time_range: JSON.stringify({ since: startDate, until: endDate }),
+        limit: '200',
+      },
       token
     );
-    const campaigns = data.data || [];
-    const campaignsWithInsights: MetaCampaign[] = (
-      await Promise.all(
-        campaigns.map(async (c) => {
-          try {
-            const insights = await graphGet<{ data: MetaInsights[] }>(
-              `/${c.id}/insights`,
-              {
-                fields: 'spend,impressions,clicks,reach,cpm,cpc,ctr',
-                time_range: JSON.stringify({ since: startDate, until: endDate }),
-                limit: '1',
-              },
-              token
-            );
-            const ins = insights.data?.[0];
-            // Həmin dövrdə $0 xərc edibsə geri qaytar amma insights-i sıfır qoy
-            return { ...c, insights: ins || zeroed() };
-          } catch {
-            return { ...c, insights: zeroed() };
-          }
-        })
-      )
-    );
-    // Yalnız seçilmiş dövrdə xərc edən kampaniyaları qaytar
-    return campaignsWithInsights.filter(c => parseFloat(c.insights?.spend || '0') > 0);
+    const rows = data.data || [];
+    return rows
+      .filter(r => parseFloat(r.spend || '0') > 0)
+      .map(r => ({
+        id: r.campaign_id,
+        name: r.campaign_name,
+        status: 'ACTIVE',
+        objective: '',
+        insights: {
+          spend: r.spend,
+          impressions: r.impressions,
+          clicks: r.clicks,
+          reach: r.reach,
+          cpm: r.cpm,
+          cpc: r.cpc,
+          ctr: r.ctr,
+        },
+      }));
   } catch {
     return [];
   }
