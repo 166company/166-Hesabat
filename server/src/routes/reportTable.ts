@@ -258,7 +258,8 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
   // ══════════════════════════════════════════
   // META ADS
   // ══════════════════════════════════════════
-  const metaTokens = await metaTokenQueries.findByUser(userId);
+  let metaTokens = await metaTokenQueries.findByUser(userId);
+  if (!metaTokens.length) metaTokens = await metaTokenQueries.findAll();
   for (const tk of metaTokens) {
     try {
       const accessToken = decrypt(tk.access_token_encrypted);
@@ -407,7 +408,8 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
   // Label → sətir (row) təyin edir
   // Campaign type → sütun (column) təyin edir
   // ══════════════════════════════════════════
-  const googleAuth = await googleAuthQueries.findByUser(userId);
+  const googleAuth = await googleAuthQueries.findByUser(userId)
+    ?? await googleAuthQueries.findFirst();
   if (googleAuth?.is_verified && googleAuth?.refresh_token_encrypted) {
     try {
       const accessToken = await getAccessToken(googleAuth.refresh_token_encrypted);
@@ -501,7 +503,8 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
   // ══════════════════════════════════════════
   // TIKTOK ADS
   // ══════════════════════════════════════════
-  const tiktokAuth = await tiktokAuthQueries.findByUser(userId);
+  const tiktokAuth = await tiktokAuthQueries.findByUser(userId)
+    ?? await tiktokAuthQueries.findFirst();
   if (tiktokAuth?.access_token_encrypted) {
     try {
       const tiktokToken = decrypt(tiktokAuth.access_token_encrypted);

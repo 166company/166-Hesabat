@@ -132,7 +132,8 @@ router.post('/resend-code', authMiddleware, async (req: AuthRequest, res: Respon
 
 // Get Google Ads connection status
 router.get('/status', authMiddleware, async (req: AuthRequest, res: Response) => {
-  const auth = await googleAuthQueries.findByUser(req.user!.id);
+  const auth = await googleAuthQueries.findByUser(req.user!.id)
+    ?? await googleAuthQueries.findFirst();
   if (!auth) {
     res.json({ connected: false, verified: false });
     return;
@@ -192,7 +193,8 @@ router.post('/report', authMiddleware, async (req: AuthRequest, res: Response) =
     return;
   }
 
-  const auth = await googleAuthQueries.findByUser(userId);
+  const auth = await googleAuthQueries.findByUser(userId)
+    ?? await googleAuthQueries.findFirst();
   if (!auth || !auth.is_verified) {
     res.status(403).json({ error: 'Google Ads doğrulanmayıb' });
     return;

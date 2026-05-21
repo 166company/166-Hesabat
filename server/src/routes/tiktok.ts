@@ -42,7 +42,8 @@ router.get('/callback', async (req: Request, res: Response) => {
 
 // Status
 router.get('/status', authMiddleware, async (req: AuthRequest, res: Response) => {
-  const auth = await tiktokAuthQueries.findByUser(req.user!.id);
+  const auth = await tiktokAuthQueries.findByUser(req.user!.id)
+    ?? await tiktokAuthQueries.findFirst();
   if (!auth) { res.json({ connected: false }); return; }
   const advertiserIds: string[] = JSON.parse(auth.advertiser_ids || '[]');
   res.json({ connected: true, advertiserIds });
@@ -50,7 +51,8 @@ router.get('/status', authMiddleware, async (req: AuthRequest, res: Response) =>
 
 // Advertiser məlumatları
 router.get('/advertisers', authMiddleware, async (req: AuthRequest, res: Response) => {
-  const auth = await tiktokAuthQueries.findByUser(req.user!.id);
+  const auth = await tiktokAuthQueries.findByUser(req.user!.id)
+    ?? await tiktokAuthQueries.findFirst();
   if (!auth) { res.status(404).json({ error: 'TikTok qoşulmayıb' }); return; }
   const accessToken = decrypt(auth.access_token_encrypted);
   const advertiserIds: string[] = JSON.parse(auth.advertiser_ids || '[]');
@@ -64,7 +66,8 @@ router.post('/report', authMiddleware, async (req: AuthRequest, res: Response) =
   if (!advertiserId || !startDate || !endDate) {
     res.status(400).json({ error: 'advertiserId, startDate, endDate tələb olunur' }); return;
   }
-  const auth = await tiktokAuthQueries.findByUser(req.user!.id);
+  const auth = await tiktokAuthQueries.findByUser(req.user!.id)
+    ?? await tiktokAuthQueries.findFirst();
   if (!auth) { res.status(403).json({ error: 'TikTok qoşulmayıb' }); return; }
   const accessToken = decrypt(auth.access_token_encrypted);
   try {

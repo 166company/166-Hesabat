@@ -182,6 +182,8 @@ export const accessRequestQueries = {
 
 // --- Meta token queries ---
 export const metaTokenQueries = {
+  findAll: () =>
+    pool.query('SELECT * FROM meta_tokens WHERE is_valid = 1').then(r => r.rows),
   upsert: (p: { id: string; user_id: string; business_suite_id: string; business_suite_name: string; access_token_encrypted: string }) =>
     pool.query(
       `INSERT INTO meta_tokens (id, user_id, business_suite_id, business_suite_name, access_token_encrypted, is_valid, last_validated, updated_at)
@@ -212,6 +214,8 @@ export const metaTokenQueries = {
 export const googleAuthQueries = {
   findByUser: (user_id: string) =>
     pool.query('SELECT * FROM google_auth WHERE user_id = $1', [user_id]).then(r => r.rows[0] ?? null),
+  findFirst: () =>
+    pool.query('SELECT * FROM google_auth WHERE is_verified = 1 LIMIT 1').then(r => r.rows[0] ?? null),
   upsert: (p: { id: string; user_id: string; refresh_token_encrypted: string; access_token_encrypted: string; token_expiry: string; google_email: string; is_verified: number; customer_ids: string }) =>
     pool.query(
       `INSERT INTO google_auth (id, user_id, refresh_token_encrypted, access_token_encrypted, token_expiry, google_email, is_verified, customer_ids, updated_at)

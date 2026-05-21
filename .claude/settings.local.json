@@ -10,7 +10,11 @@
       "PowerShell($env:Path = [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"User\"\\); Set-Location \"c:\\\\Users\\\\Cavidan Setterzade\\\\166 ads audit\\\\server\"; npx tsc --noEmit 2>&1)",
       "PowerShell($env:Path = [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"User\"\\); Set-Location \"c:\\\\Users\\\\Cavidan Setterzade\\\\166 ads audit\\\\client\"; npm install 2>&1 | Select-String -NotMatch \"warn|notice\" | Select-Object -Last 10)",
       "PowerShell($env:Path = [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"User\"\\); Set-Location \"c:\\\\Users\\\\Cavidan Setterzade\\\\166 ads audit\\\\client\"; npx tsc --noEmit 2>&1)",
-      "PowerShell($env:Path = [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"User\"\\); Set-Location \"c:\\\\Users\\\\Cavidan Setterzade\\\\166 ads audit\\\\server\"; Start-Process -FilePath \"cmd.exe\" -ArgumentList \"/c npm run dev\" -WindowStyle Normal; Start-Sleep -Seconds 3; Write-Output \"Server başladılıb\")"
+      "PowerShell($env:Path = [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"User\"\\); Set-Location \"c:\\\\Users\\\\Cavidan Setterzade\\\\166 ads audit\\\\server\"; Start-Process -FilePath \"cmd.exe\" -ArgumentList \"/c npm run dev\" -WindowStyle Normal; Start-Sleep -Seconds 3; Write-Output \"Server başladılıb\")",
+      "Bash(node -e ' *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
     ]
   }
 }

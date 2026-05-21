@@ -42,7 +42,8 @@ async function fetchAllAccounts(accessToken: string): Promise<any[]> {
 // Get stored suites for user
 router.get('/business-suites', async (req: AuthRequest, res: Response) => {
   const userId = req.user!.id;
-  const tokens = await metaTokenQueries.findByUser(userId);
+  let tokens = await metaTokenQueries.findByUser(userId);
+  if (!tokens.length) tokens = await metaTokenQueries.findAll();
   const suites = tokens.map((t: any) => ({
     id: t.id,
     businessSuiteId: t.business_suite_id,
