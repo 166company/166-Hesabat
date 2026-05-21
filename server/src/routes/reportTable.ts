@@ -302,19 +302,26 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
           (accNorm.includes('ads') || accNorm.includes('group') || accNorm.includes('rekl')) &&
           !accNorm.includes('temizl');
         if (is166Group) {
-          for (const camp of report.campaigns) {
-            const spend = parseFloat(camp.insights?.spend || '0');
-            if (!spend) continue;
-            const cNorm = norm(camp.name);
-            // Kampaniya adına görə uyğun sətir tap, tapılmadıqda Yükdaşıma
-            const campLoc = findRowByAccountName(camp.name, allSectionRows);
-            if (campLoc) {
-              add(campLoc, 'meta', spend);
-            } else if (cNorm.includes('anbar')) {
-              add(findRowByName('Anbar', allSectionRows), 'meta', spend);
-            } else {
-              add(findRowByName('Yükdaşıma', allSectionRows), 'meta', spend);
+          const campTotal = report.campaigns.reduce((s, c) => s + parseFloat(c.insights?.spend || '0'), 0);
+          const accTotal = parseFloat(report.insights?.spend || '0');
+          const totalForGroup = campTotal || accTotal;
+          if (report.campaigns.length > 0) {
+            for (const camp of report.campaigns) {
+              const spend = parseFloat(camp.insights?.spend || '0');
+              if (!spend) continue;
+              const cNorm = norm(camp.name);
+              const campLoc = findRowByAccountName(camp.name, allSectionRows);
+              if (campLoc) {
+                add(campLoc, 'meta', spend);
+              } else if (cNorm.includes('anbar')) {
+                add(findRowByName('Anbar', allSectionRows), 'meta', spend);
+              } else {
+                add(findRowByName('Yükdaşıma', allSectionRows), 'meta', spend);
+              }
             }
+          } else if (totalForGroup > 0) {
+            // Kampaniyalar boşdursa hesab xərcini Yükdaşıma-ya yaz
+            add(findRowByName('Yükdaşıma', allSectionRows), 'meta', totalForGroup);
           }
           return;
         }
@@ -328,17 +335,23 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
         // ──────────────────────────────────────────────────────────────
         const isTemizlik = accNorm.includes('temizl') || accNorm.includes('tamizl') || accNorm.includes('cleaning');
         if (isTemizlik) {
-          for (const camp of report.campaigns) {
-            const spend = parseFloat(camp.insights?.spend || '0');
-            if (!spend) continue;
-            const cNorm = norm(camp.name);
-            if (cNorm.includes('lux')) {
-              add(findRowByName('Lux (Təmizlik)', allSectionRows), 'meta', spend);
-            } else if (cNorm.includes('perde') || cNorm.includes('parda') || cNorm.includes('perda')) {
-              add(findRowByName('Pərdə (Təmizlik)', allSectionRows), 'meta', spend);
-            } else {
-              add(findRowByName('Təmizlik', allSectionRows), 'meta', spend);
+          const accSpend = parseFloat(report.insights?.spend || '0');
+          if (report.campaigns.length > 0) {
+            for (const camp of report.campaigns) {
+              const spend = parseFloat(camp.insights?.spend || '0');
+              if (!spend) continue;
+              const cNorm = norm(camp.name);
+              if (cNorm.includes('lux')) {
+                add(findRowByName('Lux (Təmizlik)', allSectionRows), 'meta', spend);
+              } else if (cNorm.includes('perde') || cNorm.includes('parda') || cNorm.includes('perda')) {
+                add(findRowByName('Pərdə (Təmizlik)', allSectionRows), 'meta', spend);
+              } else {
+                add(findRowByName('Təmizlik', allSectionRows), 'meta', spend);
+              }
             }
+          } else if (accSpend > 0) {
+            // Kampaniyalar boşdursa hesab xərcini Təmizlik-ə yaz
+            add(findRowByName('Təmizlik', allSectionRows), 'meta', accSpend);
           }
           return;
         }
@@ -354,6 +367,11 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
             norm(s.sec.section_name).includes('life') || norm(s.sec.section_name).includes('vakansiya')
           );
           const lifeSection = lifeSections[0];
+          const lifeAccSpend = parseFloat(report.insights?.spend || '0');
+          if (report.campaigns.length === 0 && lifeAccSpend > 0 && lifeSection) {
+            add({ secId: lifeSection.sec.id, rowId: lifeSection.rows[0]?.id }, 'meta', lifeAccSpend);
+            return;
+          }
           for (const camp of report.campaigns) {
             const spend = parseFloat((camp as any).insights?.spend || '0');
             if (!spend) continue;
@@ -388,8 +406,10 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
         // ──────────────────────────────────────────────────────────────
         const accLocation = findRowByAccountName(accName, allSectionRows);
         if (accLocation) {
-          const totalSpend = report.campaigns.reduce((s, c) => s + parseFloat(c.insights?.spend || '0'), 0);
-          console.log(`[Meta] "${accName}" → row match: $${totalSpend.toFixed(2)}`);
+          const campSpend = report.campaigns.reduce((s, c) => s + parseFloat(c.insights?.spend || '0'), 0);
+          const accSpend = parseFloat(report.insights?.spend || '0');
+          const totalSpend = campSpend || accSpend; // hesab xərcini fallback kimi istifadə et
+          console.log(`[Meta] "${accName}" → row match: camp=$${campSpend.toFixed(2)} acc=$${accSpend.toFixed(2)} used=$${totalSpend.toFixed(2)}`);
           if (totalSpend > 0) add(accLocation, 'meta', totalSpend);
         } else {
           let anyMatched = false;
