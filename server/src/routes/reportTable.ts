@@ -38,7 +38,7 @@ const DEFAULT_SECTIONS = [
       { name: 'Lux (Təmizlik)',       patterns: ['lux'],                              excludes: [] },
       { name: 'Pərdə (Təmizlik)',     patterns: ['pərdə', 'parda', 'perde'],          excludes: [] },
       { name: 'Usta',                 patterns: ['usta'],                             excludes: [] },
-      { name: 'Yükdaşıma',           patterns: ['yükdaşıma', 'yukdashima', 'yükdaşima', 'yukdasima'], excludes: [] },
+      { name: 'Yükdaşıma',           patterns: ['yükdaşıma', 'yukdashima', 'yükdaşima', 'yukdasima', 'cargo'], excludes: [] },
       { name: 'Transport',            patterns: ['transport'],                         excludes: [] },
       { name: 'Xalça',               patterns: ['xalça', 'xalca'],                   excludes: [] },
       { name: 'Evakuasiya',           patterns: ['evakuasiya'],                        excludes: [] },
@@ -301,12 +301,16 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
         const is166Group = accNorm.includes('166') &&
           (accNorm.includes('ads') || accNorm.includes('group') || accNorm.includes('rekl')) &&
           !accNorm.includes('temizl');
-        console.log(`[Meta] Hesab: "${accName}" | is166Group=${is166Group} | isTemizlik=${accNorm.includes('temizl') || accNorm.includes('tamizl') || accNorm.includes('cleaning')}`);
         if (is166Group) {
           for (const camp of report.campaigns) {
             const spend = parseFloat(camp.insights?.spend || '0');
             if (!spend) continue;
-            if (norm(camp.name).includes('anbar')) {
+            const cNorm = norm(camp.name);
+            // Kampaniya adına görə uyğun sətir tap, tapılmadıqda Yükdaşıma
+            const campLoc = findRowByAccountName(camp.name, allSectionRows);
+            if (campLoc) {
+              add(campLoc, 'meta', spend);
+            } else if (cNorm.includes('anbar')) {
               add(findRowByName('Anbar', allSectionRows), 'meta', spend);
             } else {
               add(findRowByName('Yükdaşıma', allSectionRows), 'meta', spend);
@@ -385,18 +389,23 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
         const accLocation = findRowByAccountName(accName, allSectionRows);
         if (accLocation) {
           const totalSpend = report.campaigns.reduce((s, c) => s + parseFloat(c.insights?.spend || '0'), 0);
+          console.log(`[Meta] "${accName}" → row match: $${totalSpend.toFixed(2)}`);
           if (totalSpend > 0) add(accLocation, 'meta', totalSpend);
         } else {
           let anyMatched = false;
+          let matchedTotal = 0;
           for (const camp of report.campaigns) {
             const spend = parseFloat((camp as any).insights?.spend || '0');
             if (!spend) continue;
             const campLocation = findRowByAccountName(camp.name, allSectionRows);
-            if (campLocation) { add(campLocation, 'meta', spend); anyMatched = true; }
+            if (campLocation) { add(campLocation, 'meta', spend); anyMatched = true; matchedTotal += spend; }
+            else { console.log(`[Meta] UNMATCHED camp: "${camp.name}" $${spend.toFixed(2)} (from "${accName}")`); }
           }
           if (!anyMatched) {
             const total = report.campaigns.reduce((s, c) => s + parseFloat((c as any).insights?.spend || '0'), 0);
-            if (total > 0) console.log(`[AutoPopulate] Skipped: "${accName}" (norm="${accNorm}") $${total.toFixed(2)}`);
+            if (total > 0) console.log(`[Meta] SKIP account: "${accName}" $${total.toFixed(2)}`);
+          } else {
+            console.log(`[Meta] "${accName}" → campaign match: $${matchedTotal.toFixed(2)}`);
           }
         }
       }));
