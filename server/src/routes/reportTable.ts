@@ -525,7 +525,14 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
               }
             }
           }
-        } catch (e) { console.error(`[AutoPopulate] Google customer ${customer.id}:`, e); }
+        } catch (e: any) {
+          if (e.response?.status === 429) {
+            const retry = e.response?.data?.error?.details?.[0]?.errors?.[0]?.details?.quotaErrorDetails?.retryDelay || '?';
+            unmatched.push(`[Google] Kvota bitib — ${retry} sonra yenidən cəhd edin`);
+          } else {
+            console.error(`[AutoPopulate] Google customer ${customer.id}:`, e);
+          }
+        }
       }));
     } catch (e) { console.error('[AutoPopulate] Google error:', e); }
   }

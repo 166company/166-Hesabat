@@ -257,7 +257,8 @@ export async function getCampaignReport(
       }
     }
     return campaigns;
-  } catch {
+  } catch (e: any) {
+    if (e.response?.status === 429) throw e; // Kvota bitib — gizlətmə
     return [];
   }
 }

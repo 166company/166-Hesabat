@@ -306,10 +306,12 @@ export default function ReportTablePage() {
         {unmatched.length > 0 && (
           <div className="mb-4 p-3 rounded-xl" style={{ background: '#fff7ed', border: '1px solid #fed7aa' }}>
             <p className="text-xs font-semibold mb-2" style={{ color: '#c2410c' }}>
-              ⚠ Uyğun sətir tapılmayan kampaniyalar:
+              ⚠ Xəbərdarlıqlar:
             </p>
             <div className="max-h-24 overflow-y-auto space-y-1">
-              {unmatched.map((u, i) => <div key={i} className="text-xs" style={{ color: '#ea580c' }}>• {u}</div>)}
+              {unmatched.map((u, i) => (
+                <div key={i} className="text-xs" style={{ color: u.includes('Kvota') ? '#b45309' : '#ea580c', fontWeight: u.includes('Kvota') ? 600 : 400 }}>• {u}</div>
+              ))}
             </div>
           </div>
         )}
