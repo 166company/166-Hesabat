@@ -7,8 +7,8 @@ import rateLimit from 'express-rate-limit';
 import { createServer } from 'http';
 import { Server as SocketServer } from 'socket.io';
 import { v4 as uuidv4 } from 'uuid';
-import jwt from 'jsonwebtoken';
 import { initDatabase, chatQueries, userQueries, errorLogQueries } from './db/database';
+import { verifyToken } from './middleware/auth';
 import { sendErrorNotification } from './services/emailService';
 import bcrypt from 'bcryptjs';
 import authRouter from './routes/auth';
@@ -22,7 +22,6 @@ import dashboardRouter from './routes/dashboard';
 
 const PORT = process.env.PORT || 5000;
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
-const JWT_SECRET = process.env.JWT_SECRET || 'changeme_secret_32chars_minimum!!';
 
 // Bütün icazəli originlər (localhost + Netlify)
 const ALLOWED_ORIGINS = [
@@ -39,7 +38,7 @@ async function seedAdminUser() {
     const setupPassword = process.env.SETUP_ADMIN_PASSWORD || 'Admin@166!';
     const existing = await userQueries.findByEmail(adminEmail);
     if (!existing) {
-      const hash = bcrypt.hashSync(setupPassword, 10);
+      const hash = bcrypt.hashSync(setupPassword, 12);
       await userQueries.create({
         id: uuidv4(),
         email: adminEmail,
@@ -49,7 +48,8 @@ async function seedAdminUser() {
         status: 'approved',
         chat_access: 'approved',
       });
-      console.log(`[Seed] Admin yaradıldı: ${adminEmail} / şifrə: ${setupPassword}`);
+      // Şifrəni loglara yazmırıq — təhlükəsizlik üçün
+      console.log(`[Seed] Admin yaradıldı: ${adminEmail}`);
     }
   } catch (e: any) {
     console.error('[Seed] Xəta:', e.message);
@@ -64,7 +64,23 @@ const io = new SocketServer(httpServer, {
   cors: { origin: ALLOWED_ORIGINS, methods: ['GET', 'POST'], credentials: true },
 });
 
-app.use(helmet({ contentSecurityPolicy: false }));
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Vite dev + React üçün
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+      imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
+      connectSrc: ["'self'", ...ALLOWED_ORIGINS, 'https://googleads.googleapis.com', 'https://graph.facebook.com'],
+      frameSrc: ["'none'"],
+      objectSrc: ["'none'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false, // Render üçün lazımdır
+  hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+}));
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin || ALLOWED_ORIGINS.includes(origin)) callback(null, true);
@@ -72,14 +88,27 @@ app.use(cors({
   },
   credentials: true,
 }));
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '512kb' })); // 1mb-dan 512kb-a endirdik
 // Auto-populate üçün uzun timeout (Meta API 14 hesab = ~3-5 dəq)
 app.use('/api/report-table/auto-populate', (_req, _res, next) => {
   _req.setTimeout(600000); _res.setTimeout(600000); next();
 });
 
+// Ümumi API rate limiter
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200, standardHeaders: true, legacyHeaders: false });
 app.use('/api/', limiter);
+
+// Auth endpoint-ləri üçün ciddi rate limiter (brute force əngəl)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 dəq
+  max: 20, // 15 dəq ərzində max 20 sorğu (login + register)
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Çox sayda sorğu. 15 dəqiqə sonra yenidən cəhd edin.' },
+  skipSuccessfulRequests: false,
+});
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
 
 // --- Routes ---
 app.use('/api/auth', authRouter);
@@ -141,7 +170,7 @@ io.use(async (socket, next) => {
   const token = socket.handshake.auth.token as string;
   if (!token) return next(new Error('Unauthorized'));
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as jwt.JwtPayload;
+    const decoded = verifyToken(token);
     const user = await userQueries.findById(decoded.id);
     if (!user || user.status !== 'approved' || user.chat_access !== 'approved') {
       return next(new Error('Chat erişimi yoxdur'));

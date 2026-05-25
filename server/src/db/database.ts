@@ -360,13 +360,16 @@ export const cacheQueries = {
       `SELECT data FROM platform_cache WHERE cache_key = $1 AND expires_at > NOW()`,
       [key]
     ).then(r => r.rows[0] ? JSON.parse(r.rows[0].data) : null),
-  set: (key: string, data: any, ttlHours = 6) =>
-    pool.query(
+  set: (key: string, data: any, ttlHours = 6) => {
+    // Validate ttlHours to prevent SQL injection via template literal
+    const safeTtl = Math.max(1, Math.min(168, Number(ttlHours) || 6)); // 1h–168h (1 week)
+    return pool.query(
       `INSERT INTO platform_cache (id, cache_key, data, expires_at)
-       VALUES ($1, $2, $3, NOW() + INTERVAL '${ttlHours} hours')
-       ON CONFLICT(cache_key) DO UPDATE SET data = $3, expires_at = NOW() + INTERVAL '${ttlHours} hours', created_at = NOW()`,
-      [require('crypto').randomUUID(), key, JSON.stringify(data)]
-    ),
+       VALUES ($1, $2, $3, NOW() + ($4 * INTERVAL '1 hour'))
+       ON CONFLICT(cache_key) DO UPDATE SET data = $3, expires_at = NOW() + ($4 * INTERVAL '1 hour'), created_at = NOW()`,
+      [require('crypto').randomUUID(), key, JSON.stringify(data), safeTtl]
+    );
+  },
   invalidate: (keyPrefix: string) =>
     pool.query(`DELETE FROM platform_cache WHERE cache_key LIKE $1`, [`${keyPrefix}%`]),
 };

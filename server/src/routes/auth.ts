@@ -3,7 +3,7 @@ import { body, validationResult } from 'express-validator';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { userQueries, accessRequestQueries } from '../db/database';
-import { signToken, authMiddleware, AuthRequest } from '../middleware/auth';
+import { signToken, authMiddleware, AuthRequest, recordLoginFailure, checkLoginLocked, clearLoginFailures } from '../middleware/auth';
 import { sendAccessRequestToAdmin } from '../services/emailService';
 import { generateSecureToken } from '../utils/encryption';
 
@@ -84,17 +84,32 @@ router.post(
       res.status(400).json({ errors: errors.array() });
       return;
     }
+
+    // IP-based brute-force yoxlaması
+    const ip = (req.ip || req.socket.remoteAddress || 'unknown').replace(/^::ffff:/, '');
+    const lockCheck = checkLoginLocked(ip);
+    if (lockCheck.locked) {
+      const secs = Math.ceil(lockCheck.retryAfterMs / 1000);
+      res.status(429).json({ error: `Çox sayda uğursuz cəhd. ${secs} saniyə sonra yenidən cəhd edin.` });
+      return;
+    }
+
     const { email, password } = req.body;
     const user = await userQueries.findByEmail(email);
-    if (!user) {
-      res.status(401).json({ error: 'Email və ya şifrə yanlışdır' });
+
+    // Timing attack-dan qorumaq üçün user yoxdursa da hash müqayisə et
+    const dummyHash = '$2a$12$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    const valid = await bcrypt.compare(password, user?.password_hash || dummyHash);
+
+    if (!user || !valid) {
+      const result = recordLoginFailure(ip);
+      const msg = result.locked
+        ? 'Çox sayda uğursuz cəhd. 15 dəqiqə sonra yenidən cəhd edin.'
+        : `Email və ya şifrə yanlışdır. ${result.remaining} cəhd qalıb.`;
+      res.status(401).json({ error: msg });
       return;
     }
-    const valid = await bcrypt.compare(password, user.password_hash);
-    if (!valid) {
-      res.status(401).json({ error: 'Email və ya şifrə yanlışdır' });
-      return;
-    }
+
     if (user.status === 'pending') {
       res.status(403).json({ error: 'Hesabınız hələ təsdiqlənməyib. Admin qərarını gözləyin.' });
       return;
@@ -103,6 +118,9 @@ router.post(
       res.status(403).json({ error: 'Hesabınıza giriş rədd edilib.' });
       return;
     }
+
+    // Uğurlu giriş — uğursuz cəhdləri sıfırla
+    clearLoginFailures(ip);
 
     const token = signToken({ id: user.id, email: user.email, role: user.role });
     res.json({

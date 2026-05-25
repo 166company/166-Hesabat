@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { accessRequestQueries, userQueries } from '../db/database';
 import { sendApprovalEmail, sendDenialEmail } from '../services/emailService';
-import { authMiddleware, AuthRequest } from '../middleware/auth';
+import { authMiddleware, requireAdmin, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
@@ -62,11 +62,7 @@ router.get('/resolve', async (req: Request, res: Response) => {
 });
 
 // Admin panel - list users (protected)
-router.get('/users', authMiddleware, async (req: AuthRequest, res: Response) => {
-  if (req.user?.role !== 'admin') {
-    res.status(403).json({ error: 'Yalnız adminlər üçün' });
-    return;
-  }
+router.get('/users', authMiddleware, requireAdmin, async (req: AuthRequest, res: Response) => {
   const users = await userQueries.getAll();
   res.json({ users });
 });
