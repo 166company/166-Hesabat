@@ -8,12 +8,18 @@ export interface OtpChallenge {
   email: string;
 }
 
+export interface ApprovalChallenge {
+  requiresApproval: true;
+  approvalSessionToken: string;
+}
+
 interface AuthContextValue {
   user: User | null;
   token: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<OtpChallenge | void>;
-  verifyOtp: (sessionToken: string, code: string) => Promise<void>;
+  verifyOtp: (sessionToken: string, code: string) => Promise<ApprovalChallenge | void>;
+  checkApprovalStatus: (approvalSessionToken: string) => Promise<'pending' | 'approved' | 'denied' | 'expired'>;
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
@@ -36,34 +42,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem('token');
       setUser(null);
       setToken(null);
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { refreshUser(); }, [refreshUser]);
 
-  // Addım 1: email + şifrə → ya OTP challenge, ya da birbaşa login
+  // Addım 1: email + şifrə → OTP challenge
   const login = async (email: string, password: string): Promise<OtpChallenge | void> => {
     const res = await api.post('/auth/login', { email, password });
     if (res.data.requiresOtp) {
-      // OTP doğrulaması tələb olunur
       return { requiresOtp: true, sessionToken: res.data.sessionToken, email: res.data.email };
     }
-    // OTP olmadan birbaşa login (gələcək üçün)
-    const { token: t, user: u } = res.data;
-    localStorage.setItem('token', t);
-    setToken(t);
-    setUser(u);
   };
 
-  // Addım 2: OTP kodu yoxla → JWT al
-  const verifyOtp = async (sessionToken: string, code: string): Promise<void> => {
+  // Addım 2: OTP kodu → Approval challenge
+  const verifyOtp = async (sessionToken: string, code: string): Promise<ApprovalChallenge | void> => {
     const res = await api.post('/auth/verify-otp', { sessionToken, code });
-    const { token: t, user: u } = res.data;
-    localStorage.setItem('token', t);
-    setToken(t);
-    setUser(u);
+    if (res.data.requiresApproval) {
+      return { requiresApproval: true, approvalSessionToken: res.data.approvalSessionToken };
+    }
+  };
+
+  // Addım 3: Admin təsdiqini polling ilə yoxla
+  const checkApprovalStatus = async (approvalSessionToken: string): Promise<'pending' | 'approved' | 'denied' | 'expired'> => {
+    const res = await api.get(`/auth/approval-status?token=${approvalSessionToken}`);
+    const { status, token: jwtToken, user: userData } = res.data;
+    if (status === 'approved' && jwtToken) {
+      localStorage.setItem('token', jwtToken);
+      setToken(jwtToken);
+      setUser(userData);
+    }
+    return status;
   };
 
   const logout = () => {
@@ -73,7 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, verifyOtp, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, token, loading, login, verifyOtp, checkApprovalStatus, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

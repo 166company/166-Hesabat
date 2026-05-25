@@ -149,6 +149,51 @@ export async function sendLoginOTP(params: {
   });
 }
 
+export async function sendLoginApprovalRequest(params: {
+  userName: string;
+  userEmail: string;
+  ip: string;
+  time: string;
+  approveUrl: string;
+  denyUrl: string;
+}): Promise<void> {
+  const transporter = createTransport();
+  await transporter.sendMail({
+    from: `"Ads Audit System" <${process.env.SMTP_USER}>`,
+    to: ADMIN_EMAIL,
+    subject: `[Ads Audit] 🔐 Giriş Təsdiqi Tələb Olunur — ${params.userEmail}`,
+    html: `
+      <div style="font-family: Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9f9f9;">
+        <h2 style="color: #1d4ed8; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">🔐 Giriş Təsdiqi</h2>
+        <p>Aşağıdakı istifadəçi sistemə daxil olmaq istəyir. Təsdiq etmək üçün düyməyə basın:</p>
+        <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+          <tr style="background: #eff6ff;">
+            <td style="padding: 10px 14px; font-weight: bold; color: #555; width: 40%;">👤 Ad:</td>
+            <td style="padding: 10px 14px;">${params.userName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px 14px; font-weight: bold; color: #555;">📧 Email:</td>
+            <td style="padding: 10px 14px;">${params.userEmail}</td>
+          </tr>
+          <tr style="background: #eff6ff;">
+            <td style="padding: 10px 14px; font-weight: bold; color: #555;">📍 IP ünvan:</td>
+            <td style="padding: 10px 14px;">${params.ip}</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px 14px; font-weight: bold; color: #555;">🕐 Vaxt:</td>
+            <td style="padding: 10px 14px;">${params.time}</td>
+          </tr>
+        </table>
+        <div style="margin: 30px 0; text-align: center;">
+          <a href="${params.approveUrl}" style="background: #16a34a; color: white; padding: 14px 36px; text-decoration: none; border-radius: 8px; margin: 0 10px; font-family: Verdana; font-weight: bold; font-size: 15px; display: inline-block;">✅ Təsdiqlə</a>
+          <a href="${params.denyUrl}" style="background: #dc2626; color: white; padding: 14px 36px; text-decoration: none; border-radius: 8px; margin: 0 10px; font-family: Verdana; font-weight: bold; font-size: 15px; display: inline-block;">❌ Rədd et</a>
+        </div>
+        <p style="color: #94a3b8; font-size: 11px; text-align: center;">Bu sorğu 10 dəqiqə ərzində etibarlıdır.</p>
+      </div>
+    `,
+  });
+}
+
 export async function sendLoginAlert(params: {
   userEmail: string;
   userName: string;

@@ -153,6 +153,25 @@ export async function initDatabase(): Promise<void> {
   `);
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS login_approvals (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      session_token TEXT UNIQUE NOT NULL,
+      approve_token TEXT UNIQUE NOT NULL,
+      deny_token TEXT UNIQUE NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      ip TEXT,
+      expires_at TIMESTAMPTZ NOT NULL,
+      resolved_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_login_approvals_session ON login_approvals(session_token);
+    CREATE INDEX IF NOT EXISTS idx_login_approvals_approve ON login_approvals(approve_token);
+    CREATE INDEX IF NOT EXISTS idx_login_approvals_deny ON login_approvals(deny_token);
+  `);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS login_otps (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -388,6 +407,24 @@ export const cacheQueries = {
   },
   invalidate: (keyPrefix: string) =>
     pool.query(`DELETE FROM platform_cache WHERE cache_key LIKE $1`, [`${keyPrefix}%`]),
+};
+
+// --- Login Approval queries ---
+export const loginApprovalQueries = {
+  create: (p: { id: string; user_id: string; session_token: string; approve_token: string; deny_token: string; ip: string; expires_at: string }) =>
+    pool.query(
+      `INSERT INTO login_approvals (id, user_id, session_token, approve_token, deny_token, ip, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [p.id, p.user_id, p.session_token, p.approve_token, p.deny_token, p.ip, p.expires_at]
+    ),
+  findBySession: (session_token: string) =>
+    pool.query(`SELECT * FROM login_approvals WHERE session_token = $1`, [session_token]).then(r => r.rows[0] ?? null),
+  findByApproveToken: (token: string) =>
+    pool.query(`SELECT * FROM login_approvals WHERE approve_token = $1 OR deny_token = $1`, [token]).then(r => r.rows[0] ?? null),
+  resolve: (id: string, status: 'approved' | 'denied') =>
+    pool.query(`UPDATE login_approvals SET status = $1, resolved_at = NOW() WHERE id = $2`, [status, id]),
+  cleanExpired: () =>
+    pool.query(`DELETE FROM login_approvals WHERE expires_at < NOW()`),
 };
 
 // --- Login OTP queries ---
