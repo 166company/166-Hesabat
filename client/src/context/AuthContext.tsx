@@ -2,11 +2,18 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import api from '../services/api';
 import { User } from '../types';
 
+export interface OtpChallenge {
+  requiresOtp: true;
+  sessionToken: string;
+  email: string;
+}
+
 interface AuthContextValue {
   user: User | null;
   token: string | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<OtpChallenge | void>;
+  verifyOtp: (sessionToken: string, code: string) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
@@ -36,8 +43,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => { refreshUser(); }, [refreshUser]);
 
-  const login = async (email: string, password: string) => {
+  // Addım 1: email + şifrə → ya OTP challenge, ya da birbaşa login
+  const login = async (email: string, password: string): Promise<OtpChallenge | void> => {
     const res = await api.post('/auth/login', { email, password });
+    if (res.data.requiresOtp) {
+      // OTP doğrulaması tələb olunur
+      return { requiresOtp: true, sessionToken: res.data.sessionToken, email: res.data.email };
+    }
+    // OTP olmadan birbaşa login (gələcək üçün)
+    const { token: t, user: u } = res.data;
+    localStorage.setItem('token', t);
+    setToken(t);
+    setUser(u);
+  };
+
+  // Addım 2: OTP kodu yoxla → JWT al
+  const verifyOtp = async (sessionToken: string, code: string): Promise<void> => {
+    const res = await api.post('/auth/verify-otp', { sessionToken, code });
     const { token: t, user: u } = res.data;
     localStorage.setItem('token', t);
     setToken(t);
@@ -51,7 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, token, loading, login, verifyOtp, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

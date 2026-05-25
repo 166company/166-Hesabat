@@ -152,6 +152,22 @@ export async function initDatabase(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_platform_cache_expires ON platform_cache(expires_at);
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS login_otps (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      otp_code TEXT NOT NULL,
+      session_token TEXT UNIQUE NOT NULL,
+      expires_at TIMESTAMPTZ NOT NULL,
+      used INTEGER DEFAULT 0,
+      ip TEXT,
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_login_otps_session ON login_otps(session_token);
+    CREATE INDEX IF NOT EXISTS idx_login_otps_expires ON login_otps(expires_at);
+  `);
+
   // Migration: add exclude_patterns if column doesn't exist yet
   try {
     await pool.query(`ALTER TABLE report_rows ADD COLUMN exclude_patterns TEXT NOT NULL DEFAULT '[]'`);
@@ -372,6 +388,25 @@ export const cacheQueries = {
   },
   invalidate: (keyPrefix: string) =>
     pool.query(`DELETE FROM platform_cache WHERE cache_key LIKE $1`, [`${keyPrefix}%`]),
+};
+
+// --- Login OTP queries ---
+export const loginOtpQueries = {
+  create: (p: { id: string; user_id: string; otp_code: string; session_token: string; ip: string; expires_at: string }) =>
+    pool.query(
+      `INSERT INTO login_otps (id, user_id, otp_code, session_token, ip, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [p.id, p.user_id, p.otp_code, p.session_token, p.ip, p.expires_at]
+    ),
+  findBySession: (session_token: string) =>
+    pool.query(
+      `SELECT * FROM login_otps WHERE session_token = $1`,
+      [session_token]
+    ).then(r => r.rows[0] ?? null),
+  markUsed: (id: string) =>
+    pool.query(`UPDATE login_otps SET used = 1 WHERE id = $1`, [id]),
+  cleanExpired: () =>
+    pool.query(`DELETE FROM login_otps WHERE expires_at < NOW() OR used = 1`),
 };
 
 // --- Error log queries ---

@@ -109,6 +109,85 @@ export async function sendGoogleVerificationCode(userEmail: string, code: string
   });
 }
 
+export async function sendLoginOTP(params: {
+  userEmail: string;
+  userName: string;
+  code: string;
+  ip: string;
+  time: string;
+}): Promise<void> {
+  const transporter = createTransport();
+  await transporter.sendMail({
+    from: `"Ads Audit System" <${process.env.SMTP_USER}>`,
+    to: params.userEmail,
+    subject: `[Ads Audit] Giriş Doğrulama Kodu — ${params.code}`,
+    html: `
+      <div style="font-family: Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9f9f9;">
+        <h2 style="color: #1d4ed8; border-bottom: 2px solid #3b82f6; padding-bottom: 10px;">🔐 Giriş Doğrulama</h2>
+        <p>Salam <strong>${params.userName}</strong>,</p>
+        <p>Ads Audit sisteminə giriş cəhdi aşkar edildi. Aşağıdakı kodu daxil edin:</p>
+
+        <div style="background: #fff; border: 2px solid #3b82f6; border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0;">
+          <span style="font-size: 42px; font-weight: 800; color: #1d4ed8; letter-spacing: 10px;">${params.code}</span>
+        </div>
+
+        <table style="width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px;">
+          <tr style="background: #f1f5f9;">
+            <td style="padding: 8px 12px; font-weight: bold; color: #555; width: 40%;">📍 IP ünvan:</td>
+            <td style="padding: 8px 12px;">${params.ip}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 12px; font-weight: bold; color: #555;">🕐 Vaxt:</td>
+            <td style="padding: 8px 12px;">${params.time}</td>
+          </tr>
+        </table>
+
+        <p style="color: #dc2626; font-size: 13px; font-weight: 600;">⚠️ Bu giriş cəhdi siz deyilsinizsə, şifrənizi dərhal dəyişin.</p>
+        <p style="color: #94a3b8; font-size: 11px;">Bu kod <strong>5 dəqiqə</strong> ərzində etibarlıdır. Heç kimlə paylaşmayın.</p>
+      </div>
+    `,
+  });
+}
+
+export async function sendLoginAlert(params: {
+  userEmail: string;
+  userName: string;
+  ip: string;
+  time: string;
+}): Promise<void> {
+  const transporter = createTransport();
+  await transporter.sendMail({
+    from: `"Ads Audit System" <${process.env.SMTP_USER}>`,
+    to: ADMIN_EMAIL,
+    subject: `[Ads Audit] ✅ Uğurlu Giriş — ${params.userEmail}`,
+    html: `
+      <div style="font-family: Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9f9f9;">
+        <h2 style="color: #16a34a; border-bottom: 2px solid #22c55e; padding-bottom: 10px;">✅ Sisteme Uğurlu Giriş</h2>
+        <p>Aşağıdakı istifadəçi sistemə uğurla daxil oldu:</p>
+        <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+          <tr style="background: #f0fdf4;">
+            <td style="padding: 10px 14px; font-weight: bold; color: #555; width: 40%;">👤 İstifadəçi adı:</td>
+            <td style="padding: 10px 14px;">${params.userName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px 14px; font-weight: bold; color: #555;">📧 Email:</td>
+            <td style="padding: 10px 14px;">${params.userEmail}</td>
+          </tr>
+          <tr style="background: #f0fdf4;">
+            <td style="padding: 10px 14px; font-weight: bold; color: #555;">📍 IP ünvan:</td>
+            <td style="padding: 10px 14px;">${params.ip}</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px 14px; font-weight: bold; color: #555;">🕐 Giriş vaxtı:</td>
+            <td style="padding: 10px 14px;">${params.time}</td>
+          </tr>
+        </table>
+        <p style="color: #888; font-size: 12px;">Bu bildiriş avtomatik olaraq göndərilmişdir.</p>
+      </div>
+    `,
+  });
+}
+
 export async function sendErrorNotification(params: {
   errorType: string;
   errorMessage: string;
