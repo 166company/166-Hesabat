@@ -45,6 +45,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (res.data.requiresApproval) {
       return { requiresApproval: true, approvalSessionToken: res.data.approvalSessionToken };
     }
+    // Admin birbaşa token alır
+    if (res.data.token) {
+      localStorage.setItem('token', res.data.token);
+      setToken(res.data.token);
+      setUser(res.data.user);
+    }
   };
 
   const checkApprovalStatus = async (approvalSessionToken: string): Promise<'pending' | 'approved' | 'denied' | 'expired'> => {

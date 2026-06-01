@@ -84,6 +84,17 @@ router.post(
     if (user.status === 'pending') { res.status(403).json({ error: 'Hesabınız hələ təsdiqlənməyib.' }); return; }
     if (user.status === 'denied')  { res.status(403).json({ error: 'Hesabınıza giriş rədd edilib.' }); return; }
 
+    // Admin birbaşa daxil olur — özünə email göndərməyə ehtiyac yoxdur
+    if (user.role === 'admin') {
+      clearLoginFailures(ip);
+      const jwtToken = signToken({ id: user.id, email: user.email, role: user.role });
+      res.json({
+        token: jwtToken,
+        user: { id: user.id, email: user.email, name: user.name, role: user.role, status: user.status, chatAccess: user.chat_access },
+      });
+      return;
+    }
+
     try { await loginApprovalQueries.cleanExpired(); } catch { /* ignore */ }
 
     const approvalSessionToken = generateSecureToken(32);
