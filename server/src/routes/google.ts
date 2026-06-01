@@ -64,6 +64,15 @@ router.get('/callback', async (req: Request, res: Response) => {
   }
 });
 
+// Force-verify (OAuth özü artıq doğrulamadır — email kodu tələb etmirik)
+router.post('/force-verify', authMiddleware, async (req: AuthRequest, res: Response) => {
+  const userId = req.user!.id;
+  const auth = await googleAuthQueries.findByUser(userId);
+  if (!auth) { res.status(404).json({ error: 'Google hesabı tapılmadı' }); return; }
+  await googleAuthQueries.verify(userId);
+  res.json({ verified: true });
+});
+
 // Verify email code
 router.post('/verify', authMiddleware, async (req: AuthRequest, res: Response) => {
   const { code } = req.body;

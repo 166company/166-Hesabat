@@ -247,6 +247,12 @@ export default function GoogleAdsPage() {
             className="w-full py-2 text-sm font-medium text-white rounded-lg bg-[#4285F4] disabled:opacity-50 mb-2">
             {verifyLoading ? t('common.loading') : t('google.verifyBtn')}
           </button>
+          <button onClick={async () => {
+            try { await api.post('/google/force-verify'); await loadStatus(); setStep('status'); } catch {}
+          }} className="w-full py-2 text-sm font-medium rounded-lg mb-2"
+            style={{ background: '#dcfce7', color: '#15803d', border: '1px solid #86efac' }}>
+            ✓ Kodu Atla (OAuth ilə doğrulandı)
+          </button>
           <button onClick={() => api.post('/google/resend-code').catch(() => {})} className="w-full text-xs text-[#4285F4] hover:underline">{t('google.resendCode')}</button>
         </div>
       )}
