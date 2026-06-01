@@ -46,9 +46,6 @@ router.get('/callback', async (req: Request, res: Response) => {
     const tokens = await exchangeCodeForTokens(code);
     const customers = await getAccessibleCustomers(tokens.accessToken);
 
-    const code6 = generateNumericCode(6);
-    const expires = new Date(Date.now() + 15 * 60 * 1000).toISOString();
-
     await googleAuthQueries.upsert({
       id: uuidv4(),
       user_id: userId,
@@ -56,23 +53,11 @@ router.get('/callback', async (req: Request, res: Response) => {
       access_token_encrypted: encrypt(tokens.accessToken),
       token_expiry: tokens.expiry.toISOString(),
       google_email: tokens.email,
-      is_verified: 0,
+      is_verified: 1,
       customer_ids: JSON.stringify(customers),
     });
 
-    await googleAuthQueries.setVerificationCode({
-      code: code6,
-      expires,
-      user_id: userId,
-    });
-
-    try {
-      await sendGoogleVerificationCode(tokens.email, code6);
-    } catch (e) {
-      console.error('[Email] Verification code send failed:', e);
-    }
-
-    res.redirect(`${CLIENT_URL}/google-ads?step=verify&email=${encodeURIComponent(tokens.email)}`);
+    res.redirect(`${CLIENT_URL}/google-ads`);
   } catch (err: any) {
     console.error('[Google OAuth] Callback error:', err);
     res.redirect(`${CLIENT_URL}/google-ads?error=oauth_failed`);
