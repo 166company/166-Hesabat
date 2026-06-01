@@ -440,7 +440,13 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
   // ══════════════════════════════════════════
   const googleAuth = await googleAuthQueries.findByUser(userId)
     ?? await googleAuthQueries.findFirst();
-  if (googleAuth?.is_verified && googleAuth?.refresh_token_encrypted) {
+  if (!googleAuth) {
+    unmatched.push('[Google] Qoşulmuş hesab tapılmadı. Google Ads > Qoşul.');
+  } else if (!googleAuth.is_verified) {
+    unmatched.push('[Google] Hesab təsdiqlənməyib. Google Ads > Doğrula.');
+  } else if (!googleAuth.refresh_token_encrypted) {
+    unmatched.push('[Google] Refresh token yoxdur. Google Ads > Yenidən qoşul.');
+  } else {
     try {
       const accessToken = await getAccessToken(googleAuth.refresh_token_encrypted);
       const customers: { id: string; name: string; managerId?: string }[] = JSON.parse(googleAuth.customer_ids || '[]');
@@ -530,11 +536,17 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
             const retry = e.response?.data?.error?.details?.[0]?.errors?.[0]?.details?.quotaErrorDetails?.retryDelay || '?';
             unmatched.push(`[Google] Kvota bitib — ${retry} sonra yenidən cəhd edin`);
           } else {
+            const msg = e.response?.data?.error?.message || e.message || 'naməlum xəta';
+            unmatched.push(`[Google] Hesab ${customer.id}: ${msg}`);
             console.error(`[AutoPopulate] Google customer ${customer.id}:`, e);
           }
         }
       }));
-    } catch (e) { console.error('[AutoPopulate] Google error:', e); }
+    } catch (e: any) {
+      const msg = e.message || 'naməlum xəta';
+      unmatched.push(`[Google] Token xətası: ${msg}`);
+      console.error('[AutoPopulate] Google error:', e);
+    }
   }
 
   // ══════════════════════════════════════════
