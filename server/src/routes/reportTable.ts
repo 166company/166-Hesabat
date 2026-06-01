@@ -248,11 +248,13 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
 
   const results: Record<string, number> = {};
   const unmatched: string[] = [];
+  const matchLog: string[] = [];
 
-  function add(location: { secId: string; rowId: string } | null, colKey: string, cost: number) {
+  function add(location: { secId: string; rowId: string } | null, colKey: string, cost: number, debugLabel?: string) {
     if (!location || !cost) return;
     const k = `${location.secId}|${location.rowId}|${colKey}`;
     results[k] = (results[k] || 0) + cost;
+    if (debugLabel) matchLog.push(debugLabel);
   }
 
   // ══════════════════════════════════════════
@@ -511,7 +513,11 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
 
               // Digər label-lar: birbaşa uyğun sətirə yaz
               const loc = findRowByAccountName(labelName, allSectionRows);
-              if (loc) { add(loc, colKey, campCost); matched = true; break; }
+              if (loc) {
+                const rowName = allSectionRows.flatMap(s => s.rows).find(r => r.id === loc.rowId)?.row_name || loc.rowId;
+                add(loc, colKey, campCost, `[G-label] "${camp.name}" (${customer.name}) label="${labelName}" → ${rowName}/${colKey} $${campCost.toFixed(2)}`);
+                matched = true; break;
+              }
             }
 
             // Label tapılmadısa campaign adı, sonra hesab adı ilə cəhd et
@@ -525,7 +531,8 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
 
               const loc = findRowByAccountName(camp.name, allSectionRows) || accountLocation;
               if (loc) {
-                add(loc, colKey, campCost);
+                const rowName = allSectionRows.flatMap(s => s.rows).find(r => r.id === loc.rowId)?.row_name || loc.rowId;
+                add(loc, colKey, campCost, `[G-fallback] "${camp.name}" (${customer.name}) nolabel → ${rowName}/${colKey} $${campCost.toFixed(2)}`);
               } else {
                 unmatched.push(`[Google] ${camp.name} labels=[${camp.labelNames.join(',')}] $${campCost.toFixed(2)}`);
               }
@@ -613,7 +620,7 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
     });
   }
 
-  res.json({ populated: Object.keys(results).length, unmatched, message: `${Object.keys(results).length} xana dolduruldu` });
+  res.json({ populated: Object.keys(results).length, unmatched, matchLog, message: `${Object.keys(results).length} xana dolduruldu` });
 });
 
 // Debug Meta hesablarını göstər (müvəqqəti public)

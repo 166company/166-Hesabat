@@ -40,6 +40,8 @@ export default function ReportTablePage() {
   const [autoLoading, setAutoLoading] = useState(false);
   const [autoResult, setAutoResult] = useState<string>('');
   const [unmatched, setUnmatched] = useState<string[]>([]);
+  const [matchLog, setMatchLog] = useState<string[]>([]);
+  const [showMatchLog, setShowMatchLog] = useState(false);
   const [dateRange, setDateRange] = useState<DateRangeValue>({
     startDate: fmt(subDays(today, 29)),
     endDate: fmt(today),
@@ -92,6 +94,7 @@ export default function ReportTablePage() {
       );
       setAutoResult(`✓ ${res.data.populated} xana dolduruldu`);
       if (res.data.unmatched?.length) setUnmatched(res.data.unmatched);
+      if (res.data.matchLog?.length) setMatchLog(res.data.matchLog);
       await loadSections();
     } catch (err: any) {
       const msg = err.code === 'ECONNABORTED' ? 'Timeout — çox vaxt apardı. Yenidən cəhd edin.' : (err.response?.data?.error || t('errors.general'));
@@ -313,6 +316,22 @@ export default function ReportTablePage() {
                 <div key={i} className="text-xs" style={{ color: u.includes('Kvota') ? '#b45309' : '#ea580c', fontWeight: u.includes('Kvota') ? 600 : 400 }}>• {u}</div>
               ))}
             </div>
+          </div>
+        )}
+
+        {matchLog.length > 0 && (
+          <div className="mb-4 p-3 rounded-xl" style={{ background: '#f0f9ff', border: '1px solid #bae6fd' }}>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs font-semibold" style={{ color: '#0369a1' }}>🔍 Kampaniya uyğunlaşdırma loqu ({matchLog.length} kampaniya)</p>
+              <button onClick={() => setShowMatchLog(v => !v)} className="text-xs" style={{ color: '#0369a1' }}>{showMatchLog ? 'Gizlət' : 'Göstər'}</button>
+            </div>
+            {showMatchLog && (
+              <div className="max-h-48 overflow-y-auto space-y-0.5 mt-2">
+                {matchLog.map((m, i) => (
+                  <div key={i} className="text-xs font-mono" style={{ color: m.includes('fallback') ? '#b45309' : '#0369a1' }}>• {m}</div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
