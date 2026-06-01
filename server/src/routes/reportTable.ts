@@ -477,7 +477,8 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
                 if (!agCost) continue;
                 const agLoc = findRowByAccountName(ag.name, allSectionRows);
                 if (agLoc) {
-                  add(agLoc, colKey, agCost);
+                  const rowName = allSectionRows.flatMap(s => s.rows).find(r => r.id === agLoc.rowId)?.row_name || agLoc.rowId;
+                  add(agLoc, colKey, agCost, `[G-retarget] camp="${camp.name}" ag="${ag.name}" (${customer.name}) → ${rowName}/${colKey} $${agCost.toFixed(2)}`);
                 } else {
                   // Ad group adı uyğun deyil — ad (reklam) headline-larına keç
                   const ads = await getAdLevelSpend(ag.id, customer.id, accessToken, startDate, endDate, customer.managerId);
@@ -485,12 +486,13 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
                   for (const ad of ads) {
                     const adLoc = findRowByAccountName(ad.name, allSectionRows);
                     if (adLoc) {
-                      add(adLoc, colKey, ad.costMicros / 1_000_000);
+                      const rowName = allSectionRows.flatMap(s => s.rows).find(r => r.id === adLoc.rowId)?.row_name || adLoc.rowId;
+                      add(adLoc, colKey, ad.costMicros / 1_000_000, `[G-retarget-ad] camp="${camp.name}" ad="${ad.name}" (${customer.name}) → ${rowName}/${colKey}`);
                       adMatched = true;
                     }
                   }
                   if (!adMatched) {
-                    unmatched.push(`[Google-Retarget AG] ${ag.name} $${agCost.toFixed(2)}`);
+                    unmatched.push(`[Google-Retarget AG] ${ag.name} (camp: ${camp.name}, ${customer.name}) $${agCost.toFixed(2)}`);
                   }
                 }
               }
