@@ -94,7 +94,11 @@ export default function LoginPage() {
     setError(''); setLoading(true);
     try {
       const result = await login(email, password);
-      if (result?.requiresApproval) { setApproval(result); setStep('approval'); }
+      if (result?.requiresApproval) {
+        setApproval(result); setStep('approval');
+      } else {
+        navigate('/');
+      }
     } catch (err: any) {
       setError(err.response?.data?.error || t('errors.general'));
     } finally { setLoading(false); }
