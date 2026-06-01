@@ -520,7 +520,8 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
               }
             }
 
-            // Label tapılmadısa campaign adı, sonra hesab adı ilə cəhd et
+            // Label tapılmadısa: labeli olan kampaniyaları unmatched-ə at,
+            // labeli olmayan kampaniyaları kampaniya/hesab adı ilə uyğunlaşdır
             if (!matched) {
               const cn = norm(camp.name);
               const isSkipped =
@@ -529,12 +530,18 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
                 (cn.includes('china') && cn.includes('canada'));
               if (isSkipped) continue;
 
-              const loc = findRowByAccountName(camp.name, allSectionRows) || accountLocation;
-              if (loc) {
-                const rowName = allSectionRows.flatMap(s => s.rows).find(r => r.id === loc.rowId)?.row_name || loc.rowId;
-                add(loc, colKey, campCost, `[G-fallback] "${camp.name}" (${customer.name}) nolabel → ${rowName}/${colKey} $${campCost.toFixed(2)}`);
+              if (camp.labelNames.length > 0) {
+                // Labeli var amma heç bir sətirə uyğun gəlmir → unmatched
+                unmatched.push(`[Google] ${camp.name} (${customer.name}) labels=[${camp.labelNames.join(',')}] uyğun sətir yoxdur $${campCost.toFixed(2)}`);
               } else {
-                unmatched.push(`[Google] ${camp.name} labels=[${camp.labelNames.join(',')}] $${campCost.toFixed(2)}`);
+                // Label yoxdur → kampaniya adı və ya hesab adı ilə cəhd et
+                const loc = findRowByAccountName(camp.name, allSectionRows) || accountLocation;
+                if (loc) {
+                  const rowName = allSectionRows.flatMap(s => s.rows).find(r => r.id === loc.rowId)?.row_name || loc.rowId;
+                  add(loc, colKey, campCost, `[G-fallback] "${camp.name}" (${customer.name}) nolabel → ${rowName}/${colKey} $${campCost.toFixed(2)}`);
+                } else {
+                  unmatched.push(`[Google] ${camp.name} labels=[] $${campCost.toFixed(2)}`);
+                }
               }
             }
           }
