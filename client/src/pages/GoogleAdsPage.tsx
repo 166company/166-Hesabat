@@ -204,10 +204,18 @@ export default function GoogleAdsPage() {
         <div className="flex gap-2">
           {customerReports.length > 0 && <ExportButton data={exportData} filename="google-ads-report" accentColor="#4285F4" />}
           {status?.connected && (
-            <button onClick={disconnect} className="px-3 py-2 text-xs rounded-lg transition-colors"
-              style={{ color: '#fca5a5', border: '1px solid rgba(252,165,165,0.3)' }}>
-              {t('google.disconnect')}
-            </button>
+            <>
+              <button onClick={async () => { await api.delete('/google/disconnect'); connectGoogle(); }}
+                disabled={connectLoading}
+                className="px-3 py-2 text-xs rounded-lg transition-colors font-medium"
+                style={{ color: '#93c5fd', border: '1px solid rgba(147,197,253,0.4)', background: 'rgba(59,130,246,0.1)' }}>
+                {connectLoading ? '...' : '🔄 Yenidən Qoşul'}
+              </button>
+              <button onClick={disconnect} className="px-3 py-2 text-xs rounded-lg transition-colors"
+                style={{ color: '#fca5a5', border: '1px solid rgba(252,165,165,0.3)' }}>
+                {t('google.disconnect')}
+              </button>
+            </>
           )}
         </div>
       </div>
