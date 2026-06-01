@@ -3,22 +3,18 @@ import { body, validationResult } from 'express-validator';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import {
-  userQueries, accessRequestQueries,
-  loginOtpQueries, loginApprovalQueries,
+  userQueries, accessRequestQueries, loginApprovalQueries,
 } from '../db/database';
 import {
   signToken, authMiddleware, AuthRequest,
   recordLoginFailure, checkLoginLocked, clearLoginFailures,
 } from '../middleware/auth';
 import {
-  sendAccessRequestToAdmin,
-  sendLoginOTP,
-  sendLoginApprovalRequest,
+  sendAccessRequestToAdmin, sendLoginApprovalRequest,
 } from '../services/emailService';
-import { generateSecureToken, generateNumericCode } from '../utils/encryption';
+import { generateSecureToken } from '../utils/encryption';
 
 const router = Router();
-
 const SERVER_URL = process.env.SERVER_PUBLIC_URL || `http://localhost:${process.env.PORT || 5000}`;
 
 // ─── Qeydiyyat ───────────────────────────────────────────────────────────────
@@ -55,7 +51,7 @@ router.post(
   }
 );
 
-// ─── Addım 1: email + şifrə → OTP göndər ────────────────────────────────────
+// ─── Giriş: email + şifrə → adminə təsdiq sorğusu ───────────────────────────
 router.post(
   '/login',
   [body('email').isEmail().normalizeEmail(), body('password').notEmpty()],
@@ -88,55 +84,12 @@ router.post(
     if (user.status === 'pending') { res.status(403).json({ error: 'Hesabınız hələ təsdiqlənməyib.' }); return; }
     if (user.status === 'denied')  { res.status(403).json({ error: 'Hesabınıza giriş rədd edilib.' }); return; }
 
-    try { await loginOtpQueries.cleanExpired(); } catch { /* ignore */ }
-
-    const otpCode = generateNumericCode(6);
-    const sessionToken = generateSecureToken(32);
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
-
-    await loginOtpQueries.create({ id: uuidv4(), user_id: user.id, otp_code: otpCode, session_token: sessionToken, ip, expires_at: expiresAt });
-
-    const timeStr = new Date().toLocaleString('az-AZ', { timeZone: 'Asia/Baku', hour12: false });
-    try {
-      await sendLoginOTP({ userEmail: user.email, userName: user.name, code: otpCode, ip, time: timeStr });
-    } catch (e) { console.error('[Email] OTP göndərilmədi:', e); }
-
-    res.json({ requiresOtp: true, sessionToken, email: user.email });
-  }
-);
-
-// ─── Addım 2: OTP yoxla → adminə təsdiq sorğusu göndər ──────────────────────
-router.post(
-  '/verify-otp',
-  [
-    body('sessionToken').notEmpty().isLength({ min: 10, max: 200 }),
-    body('code').notEmpty().isLength({ min: 6, max: 6 }).matches(/^\d{6}$/),
-  ],
-  async (req: Request, res: Response) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) { res.status(400).json({ error: 'Yanlış sorğu formatı.' }); return; }
-
-    const { sessionToken, code } = req.body;
-    const record = await loginOtpQueries.findBySession(sessionToken);
-
-    if (!record)              { res.status(400).json({ error: 'Sessiya tapılmadı. Yenidən cəhd edin.' }); return; }
-    if (record.used)          { res.status(400).json({ error: 'Bu kod artıq istifadə edilib.' }); return; }
-    if (new Date(record.expires_at) < new Date()) { res.status(400).json({ error: 'Kodun müddəti bitib. Yenidən cəhd edin.' }); return; }
-    if (record.otp_code !== code) { res.status(400).json({ error: 'Kod yanlışdır. Emailinizi yoxlayın.' }); return; }
-
-    await loginOtpQueries.markUsed(record.id);
-
-    const user = await userQueries.findById(record.user_id);
-    if (!user || user.status !== 'approved') { res.status(401).json({ error: 'Hesab tapılmadı.' }); return; }
-
-    // Admin təsdiq sorğusu yarat
     try { await loginApprovalQueries.cleanExpired(); } catch { /* ignore */ }
 
     const approvalSessionToken = generateSecureToken(32);
     const approveToken = generateSecureToken(32);
     const denyToken = generateSecureToken(32);
-    const approvalExpiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 dəq
-    const ip = record.ip || (req.ip || '').replace(/^::ffff:/, '');
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
     await loginApprovalQueries.create({
       id: uuidv4(),
@@ -145,7 +98,7 @@ router.post(
       approve_token: approveToken,
       deny_token: denyToken,
       ip,
-      expires_at: approvalExpiresAt,
+      expires_at: expiresAt,
     });
 
     const timeStr = new Date().toLocaleString('az-AZ', { timeZone: 'Asia/Baku', hour12: false });
@@ -154,13 +107,17 @@ router.post(
 
     try {
       await sendLoginApprovalRequest({ userName: user.name, userEmail: user.email, ip, time: timeStr, approveUrl, denyUrl });
-    } catch (e) { console.error('[Email] Approval email göndərilmədi:', e); }
+    } catch (e) {
+      console.error('[Email] Approval email göndərilmədi:', e);
+      res.status(503).json({ error: 'Təsdiq emaili göndərilmədi. SMTP konfiqurasiyasını yoxlayın.' });
+      return;
+    }
 
     res.json({ requiresApproval: true, approvalSessionToken });
   }
 );
 
-// ─── Addım 3: Admin Təsdiqlə / Rədd et (email linki) ────────────────────────
+// ─── Admin Təsdiqlə / Rədd et (email linki) ──────────────────────────────────
 router.get('/resolve-login', async (req: Request, res: Response) => {
   const { token, action } = req.query as { token: string; action: string };
   if (!token || !['approve', 'deny'].includes(action)) {
@@ -174,8 +131,8 @@ router.get('/resolve-login', async (req: Request, res: Response) => {
     return;
   }
   if (record.status !== 'pending') {
-    const alreadyMsg = record.status === 'approved' ? 'artıq TƏSDİQLƏNİB' : 'artıq RƏDD EDİLİB';
-    res.send(`<html><body style="font-family:Verdana;max-width:500px;margin:50px auto;text-align:center;"><h2>Bu sorğu ${alreadyMsg}.</h2><p>Pəncərəni bağlaya bilərsiniz.</p></body></html>`);
+    const msg = record.status === 'approved' ? 'artıq TƏSDİQLƏNİB' : 'artıq RƏDD EDİLİB';
+    res.send(`<html><body style="font-family:Verdana;max-width:500px;margin:50px auto;text-align:center;"><h2>Bu sorğu ${msg}.</h2></body></html>`);
     return;
   }
   if (new Date(record.expires_at) < new Date()) {
@@ -186,29 +143,12 @@ router.get('/resolve-login', async (req: Request, res: Response) => {
   const status = action === 'approve' ? 'approved' : 'denied';
   await loginApprovalQueries.resolve(record.id, status);
 
-  if (status === 'approved') {
-    const user = await userQueries.findById(record.user_id);
-    const ip = record.ip || 'bilinmir';
-    const timeStr = new Date().toLocaleString('az-AZ', { timeZone: 'Asia/Baku', hour12: false });
-    console.log(`[Auth] Giriş TƏSDİQLƏNDİ: ${user?.email} / IP: ${ip} / ${timeStr}`);
-  }
-
   const emoji = status === 'approved' ? '✅' : '❌';
-  const msg = status === 'approved'
-    ? 'Giriş TƏSDİQLƏNDİ. İstifadəçi indi sistemə daxil ola bilər.'
-    : 'Giriş RƏDD EDİLDİ.';
-
-  res.send(`
-    <html>
-      <body style="font-family:Verdana;max-width:500px;margin:50px auto;padding:20px;text-align:center;">
-        <h2>${emoji} ${msg}</h2>
-        <p style="color:#888;">Bu pəncərəni bağlaya bilərsiniz.</p>
-      </body>
-    </html>
-  `);
+  const msg = status === 'approved' ? 'Giriş TƏSDİQLƏNDİ.' : 'Giriş RƏDD EDİLDİ.';
+  res.send(`<html><body style="font-family:Verdana;max-width:500px;margin:50px auto;padding:20px;text-align:center;"><h2>${emoji} ${msg}</h2><p style="color:#888;">Bu pəncərəni bağlaya bilərsiniz.</p></body></html>`);
 });
 
-// ─── Addım 4: Frontend polling — təsdiq statusunu yoxla ─────────────────────
+// ─── Frontend polling — təsdiq statusunu yoxla ────────────────────────────────
 router.get('/approval-status', async (req: Request, res: Response) => {
   const { token } = req.query as { token: string };
   if (!token) { res.status(400).json({ error: 'Token tələb olunur.' }); return; }
@@ -216,28 +156,19 @@ router.get('/approval-status', async (req: Request, res: Response) => {
   const record = await loginApprovalQueries.findBySession(token);
   if (!record) { res.status(404).json({ status: 'not_found' }); return; }
 
-  if (new Date(record.expires_at) < new Date() && record.status === 'pending') {
+  if (record.status === 'pending' && new Date(record.expires_at) < new Date()) {
     res.json({ status: 'expired' }); return;
   }
+  if (record.status === 'pending') { res.json({ status: 'pending' }); return; }
+  if (record.status === 'denied')  { res.json({ status: 'denied' });  return; }
 
-  if (record.status === 'pending') {
-    res.json({ status: 'pending' }); return;
-  }
-
-  if (record.status === 'denied') {
-    res.json({ status: 'denied' }); return;
-  }
-
-  // Approved — JWT yarat və qaytar
   if (record.status === 'approved') {
     const user = await userQueries.findById(record.user_id);
     if (!user || user.status !== 'approved') {
       res.status(401).json({ status: 'denied', error: 'Hesab tapılmadı.' }); return;
     }
-    // Brute-force sayacını sıfırla
     const ip = record.ip || '';
     if (ip) clearLoginFailures(ip);
-
     const jwtToken = signToken({ id: user.id, email: user.email, role: user.role });
     res.json({
       status: 'approved',
