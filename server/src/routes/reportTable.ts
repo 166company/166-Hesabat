@@ -454,6 +454,10 @@ router.post('/auto-populate', async (req: AuthRequest, res: Response) => {
       const customers: { id: string; name: string; managerId?: string }[] = JSON.parse(googleAuth.customer_ids || '[]');
       await Promise.all(customers.map(async (customer) => {
         try {
+          // 166Global hesabı tam bloklanır — heç bir sətirə aid edilmir
+          const custNorm = norm(customer.name || '');
+          if (custNorm.includes('166global') || custNorm.includes('166 global')) return;
+
           const campaigns = await getCampaignReport(customer.id, accessToken, startDate, endDate, customer.managerId);
           // Hesab adına görə sətir (label/kampaniya adı tapılmadıqda son fallback)
           const accountLocation = findRowByAccountName(customer.name || '', allSectionRows);
